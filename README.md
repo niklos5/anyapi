@@ -1,36 +1,64 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AnyApi MVP
 
-## Getting Started
+React + Next.js MVP for the AnyApi ingestion flow, backed by a lightweight
+Python service adapted from the roaster mapping engine.
 
-First, run the development server:
+## Running locally
+
+### Backend (FastAPI)
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cd backend
+pip install -r requirements.txt
+uvicorn app:app --reload --port 8080
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Frontend (Next.js)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm install
+npm run dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Open `http://localhost:3000`.
 
-## Learn More
+### Environment
 
-To learn more about Next.js, take a look at the following resources:
+The frontend expects the backend on `http://localhost:8080` by default. If
+needed, set:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```
+NEXT_PUBLIC_BACKEND_URL=http://localhost:8080
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Auth (AWS Lambda)
 
-## Deploy on Vercel
+Auth is implemented as AWS Lambda handlers using the `login/logout/refresh`
+templates. The handlers live under `backend/lambdas/auth/` and are intended to
+be deployed behind API Gateway.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Required env vars (auth lambdas):
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `JWT_SECRET`
+- `REFRESH_TOKEN_PEPPER`
+- `ACCESS_TOKEN_TTL_SECONDS` (default 900)
+- `REFRESH_TOKEN_TTL_SECONDS` (default 30 days)
+- `DATABASE_URL` or `DB_HOST`/`DB_USER`/`DB_PASSWORD`/`DB_NAME`/`DB_PORT`
+- `ALLOWED_ORIGINS` (comma-separated)
+- `COOKIE_SECURE`, `COOKIE_SAMESITE`, `COOKIE_DOMAIN`, `COOKIE_PATH`
+
+Frontend auth configuration:
+
+```
+NEXT_PUBLIC_AUTH_URL=https://your-api-gateway-domain/auth
+```
+
+## Backend auth
+
+The FastAPI service validates the bearer token using `JWT_SECRET` and scopes all
+job data by `partner_id` from the token.
+
+## Mapping config
+
+Mapping specs are user-defined JSON with `mappings` entries that map source
+paths to target fields. See `backend/README.md` for the full shape and example.

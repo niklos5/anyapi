@@ -1,65 +1,132 @@
-import Image from "next/image";
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import AppShell from "@/components/AppShell";
+import StatusBadge from "@/components/StatusBadge";
+import { listJobs, JobSummary } from "@/lib/api";
+import { mockJobs } from "@/lib/mock";
 
 export default function Home() {
+  const [jobs, setJobs] = useState<JobSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [usingMock, setUsingMock] = useState(false);
+
+  useEffect(() => {
+    const loadJobs = async () => {
+      try {
+        const response = await listJobs();
+        setJobs(response.jobs ?? []);
+        setUsingMock(false);
+      } catch {
+        setJobs([]);
+        setUsingMock(true);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadJobs();
+  }, []);
+
+  const displayJobs =
+    jobs.length > 0 ? jobs : usingMock ? mockJobs : jobs;
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+    <AppShell>
+      <section className="flex flex-col gap-6">
+        <div className="flex flex-col gap-4 rounded-2xl bg-white p-8 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                AnyApi MVP
+              </p>
+              <h1 className="text-3xl font-semibold text-slate-900">
+                Connect data sources and map any schema to any schema.
+              </h1>
+              <p className="mt-3 max-w-2xl text-base text-slate-600">
+                Upload files or connect APIs, let the system analyze your data,
+                then define the target schema mapping and track ingestion jobs.
+              </p>
+            </div>
+            <Link
+              href="/jobs/new"
+              className="inline-flex items-center justify-center rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+              Create new ingestion
+            </Link>
+          </div>
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-[2fr_1fr]">
+          <div className="rounded-2xl bg-white p-6 shadow-sm">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-slate-900">
+                Existing ingestion jobs
+              </h2>
+              <span className="text-sm text-slate-500">
+              {displayJobs.length} total
+              </span>
+            </div>
+            <div className="mt-6 divide-y divide-slate-200">
+              {loading && (
+                <div className="py-6 text-sm text-slate-500">
+                  Loading jobs from backend...
+                </div>
+              )}
+              {displayJobs.map((job) => (
+                <div
+                  key={job.id}
+                  className="flex flex-col gap-4 py-5 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">
+                      {job.name}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {job.sourceType.toUpperCase()} • {job.createdAt} •{" "}
+                      {"records" in job
+                        ? job.records.toLocaleString()
+                        : "—"}{" "}
+                      records
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <StatusBadge status={job.status} />
+                    <Link
+                      href={`/jobs/${job.id}`}
+                      className="text-sm font-semibold text-slate-900 hover:text-slate-600"
+                    >
+                      View job →
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {usingMock && (
+              <p className="mt-4 text-xs text-slate-500">
+                Backend not reachable, showing sample jobs.
+              </p>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-4 rounded-2xl border border-dashed border-slate-300 bg-slate-100 p-6">
+            <h3 className="text-lg font-semibold text-slate-900">
+              How it works
+            </h3>
+            <ol className="space-y-3 text-sm text-slate-600">
+              <li>1. Connect a file, API, or cloud bucket.</li>
+              <li>2. We profile fields and flag issues.</li>
+              <li>3. Define the target schema mapping.</li>
+              <li>4. Run the ingestion and monitor results.</li>
+            </ol>
+            <Link
+              href="/jobs/new"
+              className="mt-auto inline-flex items-center justify-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50"
             >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+              Add data source
+            </Link>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+      </section>
+    </AppShell>
   );
 }
