@@ -83,9 +83,13 @@ export default function Home() {
                     </p>
                     <p className="text-xs text-slate-500">
                       {job.sourceType.toUpperCase()} • {job.createdAt} •{" "}
-                      {"records" in job
-                        ? job.records.toLocaleString()
-                        : "—"}{" "}
+                      {(() => {
+                        const value = (job as unknown as { records?: unknown })
+                          .records;
+                        return typeof value === "number"
+                          ? value.toLocaleString()
+                          : "—";
+                      })()}{" "}
                       records
                     </p>
                   </div>

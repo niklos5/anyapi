@@ -13,7 +13,7 @@ export type JobSummary = {
   createdAt: string;
 };
 
-const authHeaders = () => {
+const authHeaders = (): Record<string, string> => {
   if (
     process.env.NEXT_PUBLIC_DISABLE_AUTH === "true" ||
     process.env.NODE_ENV !== "production"

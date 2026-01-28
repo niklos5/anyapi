@@ -47,6 +47,17 @@ export default function JobDetailPage({ params }: JobDetailPageProps) {
     );
   }
 
+  const recordsCount = (() => {
+    const value = (job as unknown as { records?: unknown }).records;
+    return typeof value === "number" ? value : null;
+  })();
+  const issuesList = (() => {
+    const value = (job as unknown as { issues?: unknown }).issues;
+    return Array.isArray(value)
+      ? (value as { field: string; message: string }[])
+      : [];
+  })();
+
   return (
     <AppShell>
       <div className="flex flex-col gap-8">
@@ -149,13 +160,15 @@ export default function JobDetailPage({ params }: JobDetailPageProps) {
                 <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
                   <span>Records processed</span>
                   <span className="font-semibold text-slate-900">
-                    {"records" in job ? job.records.toLocaleString() : "—"}
+                    {recordsCount !== null
+                      ? recordsCount.toLocaleString()
+                      : "—"}
                   </span>
                 </div>
                 <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
                   <span>Issues flagged</span>
                   <span className="font-semibold text-slate-900">
-                    {"issues" in job ? job.issues.length : "—"}
+                    {issuesList.length}
                   </span>
                 </div>
                 <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
@@ -166,11 +179,11 @@ export default function JobDetailPage({ params }: JobDetailPageProps) {
                 </div>
               </div>
             </div>
-            {"issues" in job && job.issues.length > 0 && (
+            {issuesList.length > 0 && (
               <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-xs text-rose-800">
                 <p className="font-semibold">Errors & warnings</p>
                 <ul className="mt-2 space-y-1">
-                  {job.issues.map((issue) => (
+                  {issuesList.map((issue) => (
                     <li key={issue.field}>
                       • {issue.field}: {issue.message}
                     </li>
