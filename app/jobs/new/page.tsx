@@ -86,8 +86,9 @@ export default function NewIngestionPage() {
               Create a new ingestion job
             </h1>
             <p className="mt-2 text-base text-slate-600">
-              Connect a data source, review the automatic analysis, and map it
-              to your target schema.
+              Redwood Supply Co. is onboarding its fulfillment and commerce
+              feeds. Connect a data source, review the automatic analysis, and
+              map it to your target schema.
             </p>
           </div>
           <Link
@@ -134,6 +135,9 @@ export default function NewIngestionPage() {
                   <p className="font-semibold text-slate-900">
                     Upload a CSV or JSON file
                   </p>
+                  <p className="text-xs text-slate-500">
+                    Latest feed: `fulfillment_shipments_2026_01.csv`
+                  </p>
                   <div className="flex items-center justify-between rounded-lg border border-dashed border-slate-300 bg-white px-4 py-3">
                     <span>Drop file here or browse</span>
                     <button className="rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white">
@@ -149,11 +153,11 @@ export default function NewIngestionPage() {
                   </p>
                   <input
                     className="rounded-lg border border-slate-300 bg-white px-3 py-2"
-                    placeholder="https://api.example.com/orders"
+                    placeholder="https://api.redwoodco.com/orders"
                   />
                   <input
                     className="rounded-lg border border-slate-300 bg-white px-3 py-2"
-                    placeholder="API key"
+                    placeholder="API key (read-only)"
                   />
                 </>
               )}
@@ -164,11 +168,11 @@ export default function NewIngestionPage() {
                   </p>
                   <input
                     className="rounded-lg border border-slate-300 bg-white px-3 py-2"
-                    placeholder="Bucket URL"
+                    placeholder="s3://redwood-data/ingest/"
                   />
                   <input
                     className="rounded-lg border border-slate-300 bg-white px-3 py-2"
-                    placeholder="Access token"
+                    placeholder="IAM access token"
                   />
                 </>
               )}
@@ -298,6 +302,18 @@ export default function NewIngestionPage() {
             >
               {submitting ? "Running..." : "Confirm and run ingestion"}
             </button>
+
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-600">
+              <p className="text-sm font-semibold text-slate-900">
+                Company context
+              </p>
+              <ul className="mt-3 space-y-2">
+                <li>Tenant: Redwood Supply Co.</li>
+                <li>Target schema: UnifiedOrder v2</li>
+                <li>Pipeline owner: Data Ops Team</li>
+                <li>SLAs: 15-minute freshness</li>
+              </ul>
+            </div>
           </aside>
         </div>
       </div>

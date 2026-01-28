@@ -34,7 +34,9 @@ export default function LoginPage() {
           </div>
           <div>
             <p className="text-sm font-semibold text-slate-900">AnyApi</p>
-            <p className="text-xs text-slate-500">Sign in to continue</p>
+            <p className="text-xs text-slate-500">
+              Redwood Supply Co. demo tenant
+            </p>
           </div>
         </div>
 
@@ -78,6 +80,17 @@ export default function LoginPage() {
             {loading ? "Signing in..." : "Sign in"}
           </button>
         </form>
+
+        <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-600">
+          <p className="text-sm font-semibold text-slate-900">
+            Demo account details
+          </p>
+          <ul className="mt-3 space-y-2">
+            <li>Owner: Riley Chen (Data Ops)</li>
+            <li>Role: Admin • Region: North America</li>
+            <li>Support: enterprise@redwoodco.com</li>
+          </ul>
+        </div>
       </div>
     </div>
   );

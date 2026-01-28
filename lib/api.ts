@@ -14,6 +14,12 @@ export type JobSummary = {
 };
 
 const authHeaders = () => {
+  if (
+    process.env.NEXT_PUBLIC_DISABLE_AUTH === "true" ||
+    process.env.NODE_ENV !== "production"
+  ) {
+    return {};
+  }
   const token = getAccessToken();
   if (!token) {
     return {};

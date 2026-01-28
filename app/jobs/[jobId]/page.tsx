@@ -59,7 +59,8 @@ export default function JobDetailPage({ params }: JobDetailPageProps) {
               {job.name}
             </h1>
             <p className="mt-2 text-sm text-slate-600">
-              {job.sourceType.toUpperCase()} source • Created {job.createdAt}
+              {job.sourceType.toUpperCase()} source • Created {job.createdAt} •
+              Redwood Supply Co.
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -74,28 +75,68 @@ export default function JobDetailPage({ params }: JobDetailPageProps) {
         </div>
 
         <div className="grid gap-6 lg:grid-cols-[1.4fr_0.6fr]">
-          <section className="rounded-2xl bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-semibold text-slate-900">
-              Job timeline
-            </h2>
-            <div className="mt-6 space-y-4 text-sm text-slate-600">
-              {[
-                "Source connected and validated.",
-                "Data profiling completed.",
-                "Schema mapping applied.",
-                "Ingestion processing started.",
-                "Results generated and stored.",
-              ].map((item, index) => (
-                <div key={item} className="flex items-start gap-3">
-                  <div className="mt-1 h-2 w-2 rounded-full bg-slate-900" />
-                  <div>
-                    <p className="font-medium text-slate-900">
-                      Step {index + 1}
-                    </p>
-                    <p>{item}</p>
-                  </div>
+          <section className="flex flex-col gap-6">
+            <div className="rounded-2xl bg-white p-6 shadow-sm">
+              <h2 className="text-lg font-semibold text-slate-900">
+                Company profile
+              </h2>
+              <div className="mt-4 grid gap-3 text-sm text-slate-600 sm:grid-cols-2">
+                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                  <p className="text-xs uppercase tracking-wide text-slate-500">
+                    Business unit
+                  </p>
+                  <p className="font-semibold text-slate-900">
+                    Omni-channel Fulfillment
+                  </p>
                 </div>
-              ))}
+                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                  <p className="text-xs uppercase tracking-wide text-slate-500">
+                    SLA target
+                  </p>
+                  <p className="font-semibold text-slate-900">15 min</p>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                  <p className="text-xs uppercase tracking-wide text-slate-500">
+                    Owner
+                  </p>
+                  <p className="font-semibold text-slate-900">
+                    Riley Chen, Data Ops
+                  </p>
+                </div>
+                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                  <p className="text-xs uppercase tracking-wide text-slate-500">
+                    Schema
+                  </p>
+                  <p className="font-semibold text-slate-900">
+                    UnifiedOrder v2
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl bg-white p-6 shadow-sm">
+              <h2 className="text-lg font-semibold text-slate-900">
+                Job timeline
+              </h2>
+              <div className="mt-6 space-y-4 text-sm text-slate-600">
+                {[
+                  "Source connected and validated.",
+                  "Data profiling completed.",
+                  "Schema mapping applied.",
+                  "Ingestion processing started.",
+                  "Results generated and stored.",
+                ].map((item, index) => (
+                  <div key={item} className="flex items-start gap-3">
+                    <div className="mt-1 h-2 w-2 rounded-full bg-slate-900" />
+                    <div>
+                      <p className="font-medium text-slate-900">
+                        Step {index + 1}
+                      </p>
+                      <p>{item}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </section>
 

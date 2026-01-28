@@ -108,22 +108,56 @@ export default function Home() {
             )}
           </div>
 
-          <div className="flex flex-col gap-4 rounded-2xl border border-dashed border-slate-300 bg-slate-100 p-6">
-            <h3 className="text-lg font-semibold text-slate-900">
-              How it works
-            </h3>
-            <ol className="space-y-3 text-sm text-slate-600">
-              <li>1. Connect a file, API, or cloud bucket.</li>
-              <li>2. We profile fields and flag issues.</li>
-              <li>3. Define the target schema mapping.</li>
-              <li>4. Run the ingestion and monitor results.</li>
-            </ol>
-            <Link
-              href="/jobs/new"
-              className="mt-auto inline-flex items-center justify-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50"
-            >
-              Add data source
-            </Link>
+          <div className="flex flex-col gap-6">
+            <div className="flex flex-col gap-4 rounded-2xl border border-dashed border-slate-300 bg-slate-100 p-6">
+              <h3 className="text-lg font-semibold text-slate-900">
+                How it works
+              </h3>
+              <ol className="space-y-3 text-sm text-slate-600">
+                <li>1. Connect a file, API, or cloud bucket.</li>
+                <li>2. We profile fields and flag issues.</li>
+                <li>3. Define the target schema mapping.</li>
+                <li>4. Run the ingestion and monitor results.</li>
+              </ol>
+              <Link
+                href="/jobs/new"
+                className="mt-auto inline-flex items-center justify-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50"
+              >
+                Add data source
+              </Link>
+            </div>
+
+            <div className="rounded-2xl bg-white p-6 shadow-sm">
+              <h3 className="text-lg font-semibold text-slate-900">
+                Company profile
+              </h3>
+              <div className="mt-4 space-y-3 text-sm text-slate-600">
+                <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
+                  <span>Company</span>
+                  <span className="font-semibold text-slate-900">
+                    Redwood Supply Co.
+                  </span>
+                </div>
+                <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
+                  <span>Industry</span>
+                  <span className="font-semibold text-slate-900">
+                    Retail & Logistics
+                  </span>
+                </div>
+                <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
+                  <span>Primary region</span>
+                  <span className="font-semibold text-slate-900">North America</span>
+                </div>
+                <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
+                  <span>Data sources</span>
+                  <span className="font-semibold text-slate-900">12 connected</span>
+                </div>
+              </div>
+              <p className="mt-4 text-xs text-slate-500">
+                Demo tenant showing centralized ingestion for ERP, CRM, and
+                fulfillment feeds.
+              </p>
+            </div>
           </div>
         </div>
       </section>

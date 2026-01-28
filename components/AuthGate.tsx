@@ -14,6 +14,13 @@ export default function AuthGate({ children }: AuthGateProps) {
 
   useEffect(() => {
     const ensureAuth = async () => {
+      if (
+        process.env.NEXT_PUBLIC_DISABLE_AUTH === "true" ||
+        process.env.NODE_ENV !== "production"
+      ) {
+        setReady(true);
+        return;
+      }
       const token = getAccessToken();
       if (token) {
         setReady(true);

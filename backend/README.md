@@ -44,3 +44,22 @@ uvicorn app:app --reload --port 8080
 All endpoints require `Authorization: Bearer <token>` and validate using
 `JWT_SECRET`. Tokens are issued by the AWS Lambda auth handlers under
 `backend/lambdas/auth/`.
+
+## Lambda (zip deploy)
+
+Use Python 3.12 runtime and set the handler to `lambda_handler.handler`.
+
+### Build zip (PowerShell)
+
+```powershell
+cd backend
+Remove-Item -Recurse -Force build 2>$null
+New-Item -ItemType Directory -Force build | Out-Null
+python -m pip install -r requirements.txt -t build
+Copy-Item *.py -Destination build
+Copy-Item -Recurse lambdas -Destination build\lambdas
+Compress-Archive -Path build\* -DestinationPath lambda.zip -Force
+```
+
+Upload `backend/lambda.zip` to Lambda and configure an HTTP API Gateway
+integration with Lambda proxy enabled.

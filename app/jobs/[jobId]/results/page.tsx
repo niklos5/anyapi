@@ -48,7 +48,7 @@ export default function JobResultsPage({ params }: JobResultsPageProps) {
               Processed data output
             </h1>
             <p className="mt-2 text-sm text-slate-600">
-              Job ID: {params.jobId}
+              Job ID: {params.jobId} • Redwood Supply Co.
             </p>
           </div>
           <Link
@@ -121,6 +121,17 @@ export default function JobResultsPage({ params }: JobResultsPageProps) {
                 Backend not reachable, showing sample results.
               </p>
             )}
+
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-600">
+              <p className="text-sm font-semibold text-slate-900">
+                Customer success notes
+              </p>
+              <ul className="mt-3 space-y-2">
+                <li>Weekly SLA report scheduled for Fridays.</li>
+                <li>Mapped fields align with finance reconciliations.</li>
+                <li>Alerting routed to Data Ops on-call.</li>
+              </ul>
+            </div>
           </aside>
         </div>
       </div>
