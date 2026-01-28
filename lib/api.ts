@@ -1,4 +1,3 @@
-import { getAccessToken } from "@/lib/auth";
 import { MappingSpec } from "@/lib/mapping";
 import { JobStatus } from "@/lib/types";
 
@@ -13,19 +12,7 @@ export type JobSummary = {
   createdAt: string;
 };
 
-const authHeaders = (): Record<string, string> => {
-  if (
-    process.env.NEXT_PUBLIC_DISABLE_AUTH === "true" ||
-    process.env.NODE_ENV !== "production"
-  ) {
-    return {};
-  }
-  const token = getAccessToken();
-  if (!token) {
-    return {};
-  }
-  return { Authorization: `Bearer ${token}` };
-};
+const authHeaders = (): Record<string, string> => ({});
 
 export const analyzeSource = async (data: unknown) => {
   const response = await fetch(`${BASE_URL}/analyze`, {

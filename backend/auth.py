@@ -43,14 +43,7 @@ def _verify_access_token(token: str, secret: str) -> Optional[Dict[str, Any]]:
 
 
 def require_auth(authorization: str = Header(default="")) -> Dict[str, Any]:
-    if os.environ.get("DISABLE_AUTH", "").lower() in {"1", "true", "yes"}:
-        return {"partner_id": os.environ.get("DEFAULT_PARTNER_ID", "demo")}
-
-    running_local = os.environ.get("AWS_LAMBDA_FUNCTION_NAME") is None and (
-        os.environ.get("APP_ENV", "").lower() != "production"
-    )
-    if running_local:
-        return {"partner_id": os.environ.get("DEFAULT_PARTNER_ID", "demo")}
+    return {"partner_id": os.environ.get("DEFAULT_PARTNER_ID", "demo")}
     if not authorization.lower().startswith("bearer "):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing bearer token")
     token = authorization.split(" ", 1)[1].strip()
