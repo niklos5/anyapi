@@ -54,12 +54,14 @@ class DeploySchemaRequest(BaseModel):
     schemaDefinition: Optional[Any] = None
     schemaSample: Optional[Any] = None
     defaultMapping: Optional[MappingSpec] = None
+    metadata: Optional[Dict[str, Any]] = None
 
 
 class UpdateSchemaRequest(BaseModel):
     name: Optional[str] = None
     schemaDefinition: Optional[Any] = None
     defaultMapping: Optional[MappingSpec] = None
+    metadata: Optional[Dict[str, Any]] = None
 
 
 class IngestSchemaRequest(BaseModel):
@@ -390,6 +392,7 @@ def deploy_schema(
         partner_id=partner_id,
         schema_definition=schema_definition,
         default_mapping=default_mapping,
+        metadata=request.metadata,
         api_key=api_key,
     )
     return {
@@ -398,6 +401,7 @@ def deploy_schema(
             "name": record.name,
             "schemaDefinition": record.schema_definition,
             "defaultMapping": record.default_mapping,
+            "metadata": record.metadata,
             "createdAt": record.created_at,
             "updatedAt": record.updated_at,
             "version": record.version,
@@ -416,6 +420,7 @@ def get_schemas(claims: Dict[str, Any] = Depends(require_auth)) -> Dict[str, Any
                 "name": schema.name,
                 "schemaDefinition": schema.schema_definition,
                 "defaultMapping": schema.default_mapping,
+                "metadata": schema.metadata,
                 "createdAt": schema.created_at,
                 "updatedAt": schema.updated_at,
                 "version": schema.version,
@@ -439,6 +444,7 @@ def get_schema_detail(
             "name": record.name,
             "schemaDefinition": record.schema_definition,
             "defaultMapping": record.default_mapping,
+            "metadata": record.metadata,
             "createdAt": record.created_at,
             "updatedAt": record.updated_at,
             "version": record.version,
@@ -460,6 +466,8 @@ def put_schema_detail(
         payload["schema_definition"] = request.schemaDefinition
     if request.defaultMapping is not None:
         payload["default_mapping"] = request.defaultMapping.dict()
+    if request.metadata is not None:
+        payload["metadata"] = request.metadata
     record = update_schema(schema_id, partner_id, **payload)
     if not record:
         raise HTTPException(status_code=404, detail="Schema not found")
@@ -469,6 +477,7 @@ def put_schema_detail(
             "name": record.name,
             "schemaDefinition": record.schema_definition,
             "defaultMapping": record.default_mapping,
+            "metadata": record.metadata,
             "createdAt": record.created_at,
             "updatedAt": record.updated_at,
             "version": record.version,

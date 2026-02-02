@@ -1,50 +1,30 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import AppShell from "@/components/AppShell";
-import { listJobs, listSchemas, JobSummary, SchemaSummary } from "@/lib/api";
+import { listSchemas, SchemaSummary } from "@/lib/api";
 
 export default function Home() {
   const [schemas, setSchemas] = useState<SchemaSummary[]>([]);
-  const [jobs, setJobs] = useState<JobSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [schemasResponse, jobsResponse] = await Promise.all([
-          listSchemas(),
-          listJobs(),
-        ]);
-        setSchemas(schemasResponse.schemas ?? []);
-        setJobs(jobsResponse.jobs ?? []);
+        const response = await listSchemas();
+        setSchemas(response.schemas ?? []);
         setError(null);
       } catch {
         setSchemas([]);
-        setJobs([]);
-        setError("Unable to load jobs right now.");
+        setError("Unable to load mappings right now.");
       } finally {
         setLoading(false);
       }
     };
     loadData();
   }, []);
-
-  const jobsBySchema = useMemo(() => {
-    const grouped: Record<string, JobSummary[]> = {};
-    for (const job of jobs) {
-      if (!job.schemaId) {
-        continue;
-      }
-      if (!grouped[job.schemaId]) {
-        grouped[job.schemaId] = [];
-      }
-      grouped[job.schemaId].push(job);
-    }
-    return grouped;
-  }, [jobs]);
 
   return (
     <AppShell>
@@ -56,18 +36,17 @@ export default function Home() {
                 AnyApi
               </p>
               <h1 className="text-3xl font-semibold text-slate-900">
-                Connect data sources and map any schema to any schema.
+                Map any input to your target schema.
               </h1>
               <p className="mt-3 max-w-2xl text-base text-slate-600">
-                Upload files or connect APIs, let the system analyze your data,
-                define a target schema mapping, and track ingestion jobs.
+                Create a mapping once, then reuse it to normalize every input.
               </p>
             </div>
             <Link
               href="/app/schemas/new"
               className="inline-flex items-center justify-center rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
             >
-              Deploy schema
+              Create mapping
             </Link>
           </div>
         </div>
@@ -75,7 +54,7 @@ export default function Home() {
         <div className="rounded-2xl bg-white p-6 shadow-sm">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-slate-900">
-              Mappings (schemas)
+              Mappings
             </h2>
             <span className="text-sm text-slate-500">
               {schemas.length} total
@@ -84,16 +63,15 @@ export default function Home() {
           <div className="mt-6 divide-y divide-slate-200">
             {loading && (
               <div className="py-6 text-sm text-slate-500">
-                Loading schemas from backend...
+                Loading mappings...
               </div>
             )}
             {!loading && schemas.length === 0 && (
               <div className="py-6 text-sm text-slate-500">
-                No schemas deployed yet.
+                No mappings yet.
               </div>
             )}
             {schemas.map((schema) => {
-              const jobCount = jobsBySchema[schema.id]?.length ?? 0;
               return (
                 <div
                   key={schema.id}
@@ -104,8 +82,7 @@ export default function Home() {
                       {schema.name}
                     </p>
                     <p className="text-xs text-slate-500">
-                      Version {schema.version} • Updated {schema.updatedAt} •{" "}
-                      {jobCount} job{jobCount === 1 ? "" : "s"}
+                      Version {schema.version} • Updated {schema.updatedAt}
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
@@ -113,7 +90,7 @@ export default function Home() {
                       href={`/app/schemas/${schema.id}`}
                       className="text-sm font-semibold text-slate-900 hover:text-slate-600"
                     >
-                      View →
+                      Open →
                     </Link>
                   </div>
                 </div>

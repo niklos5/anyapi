@@ -22,3 +22,27 @@ export type IngestionJob = {
   records: number;
   issues: FieldIssue[];
 };
+
+export type TransformerInputConfig = {
+  sourceType: DataSourceType;
+  endpoint?: string;
+  apiKey?: string;
+  cloudPath?: string;
+};
+
+export type TransformerOutputConfig = {
+  destinationType: "webhook" | "s3" | "db";
+  webhookUrl?: string;
+  s3Path?: string;
+  connectionString?: string;
+};
+
+export type TransformerSettings = {
+  dedupeEnabled: boolean;
+};
+
+export type TransformerMetadata = {
+  input?: TransformerInputConfig;
+  output?: TransformerOutputConfig;
+  settings?: TransformerSettings;
+};

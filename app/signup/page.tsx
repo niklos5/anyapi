@@ -95,6 +95,10 @@ export default function SignupPage() {
           >
             {loading ? "Creating account..." : "Create account"}
           </button>
+          <p className="text-center text-xs text-slate-500">
+            14-day free trial, then $20/month for unlimited use across all
+            services.
+          </p>
         </form>
 
         <div className="mt-6 text-center text-xs text-slate-500">

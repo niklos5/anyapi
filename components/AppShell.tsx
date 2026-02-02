@@ -3,9 +3,9 @@ import AuthGate from "@/components/AuthGate";
 import AuthStatus from "@/components/AuthStatus";
 
 const navItems = [
-  { label: "Dashboard", href: "/app" },
-  { label: "Schemas", href: "/app/schemas" },
-  { label: "New Ingestion", href: "/app/jobs/new" },
+  { label: "Mappings", href: "/app" },
+  { label: "Create mapping", href: "/app/schemas/new" },
+  { label: "Billing", href: "/app/billing" },
 ];
 
 type AppShellProps = {
@@ -24,7 +24,7 @@ export default function AppShell({ children }: AppShellProps) {
             <div>
               <p className="text-sm font-semibold text-slate-900">AnyApi</p>
               <p className="text-xs text-slate-500">
-                Ingestion and schema mapping
+                Simple mappings for any input
               </p>
             </div>
           </div>

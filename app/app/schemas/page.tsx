@@ -29,31 +29,30 @@ export default function SchemasPage() {
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-              Schemas
+              Mappings
             </p>
             <h1 className="text-3xl font-semibold text-slate-900">
-              Deployed target schemas
+              All mappings
             </h1>
             <p className="mt-2 text-sm text-slate-600">
-              Manage schema definitions and default mappings for ingestion.
+              Each mapping turns any input into your target schema.
             </p>
           </div>
           <Link
             href="/app/schemas/new"
             className="inline-flex items-center justify-center rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
           >
-            Deploy new schema
+            Create mapping
           </Link>
         </div>
 
         <div className="rounded-2xl bg-white p-6 shadow-sm">
           {loading && (
-            <p className="text-sm text-slate-500">Loading schemas...</p>
+            <p className="text-sm text-slate-500">Loading mappings...</p>
           )}
           {!loading && schemas.length === 0 && (
             <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-600">
-              No schemas deployed yet. Deploy a schema to reuse it across
-              ingestion jobs.
+              No mappings yet. Create a mapping to reuse it across inputs.
             </div>
           )}
           {!loading && schemas.length > 0 && (
@@ -73,20 +72,14 @@ export default function SchemasPage() {
                   </div>
                   <div className="flex items-center gap-3 text-xs text-slate-500">
                     <span>
-                      Default mapping:{" "}
-                      {schema.defaultMapping ? "Configured" : "Not set"}
+                      Target schema:{" "}
+                      {schema.schemaDefinition ? "Configured" : "Missing"}
                     </span>
                     <Link
                       href={`/app/schemas/${schema.id}`}
                       className="text-sm font-semibold text-slate-700 hover:text-slate-900"
                     >
-                      View
-                    </Link>
-                    <Link
-                      href={`/app/schemas/new?clone=${schema.id}`}
-                      className="text-sm font-semibold text-slate-700 hover:text-slate-900"
-                    >
-                      Clone
+                      Open
                     </Link>
                   </div>
                 </div>

@@ -54,7 +54,7 @@ export default function LandingPage() {
                 href="/signup"
                 className="rounded-full bg-white px-6 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-100"
               >
-                Get started free
+                Start 14-day free trial
               </Link>
               <Link
                 href="#how"
@@ -67,6 +67,7 @@ export default function LandingPage() {
               <span>Schema-agnostic</span>
               <span>Reusable mappings</span>
               <span>API-first delivery</span>
+              <span>14-day free trial</span>
             </div>
           </div>
 
@@ -139,6 +140,49 @@ export default function LandingPage() {
               <li>Agentic mapping with validation</li>
               <li>API-first ingestion with keys</li>
               <li>Auditability and mapping reuse</li>
+            </ul>
+          </div>
+        </section>
+
+        <section
+          id="pricing"
+          className="grid gap-8 rounded-3xl border border-white/10 bg-white/5 p-10 md:grid-cols-[1.1fr_0.9fr]"
+        >
+          <div className="space-y-4">
+            <h2 className="text-3xl font-semibold">Simple, unlimited pricing.</h2>
+            <p className="text-white/70">
+              Start with a 14-day free trial. After that, it is $20/month for
+              unlimited use across all services.
+            </p>
+            <div className="flex flex-wrap items-center gap-4">
+              <Link
+                href="/signup"
+                className="rounded-full bg-white px-6 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-100"
+              >
+                Start 14-day free trial
+              </Link>
+              <Link
+                href="/signup"
+                className="text-sm font-semibold text-white/80 hover:text-white"
+              >
+                View plan details →
+              </Link>
+            </div>
+          </div>
+          <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 text-sm text-white/80">
+            <p className="text-xs font-semibold uppercase text-white/60">
+              Unlimited plan
+            </p>
+            <div className="mt-3 flex items-baseline gap-2">
+              <span className="text-4xl font-semibold text-white">$20</span>
+              <span className="text-white/60">/ month</span>
+            </div>
+            <p className="mt-3 text-white/70">14-day free trial included.</p>
+            <ul className="mt-4 space-y-2">
+              <li>Unlimited mappings and ingestion jobs</li>
+              <li>All services included</li>
+              <li>Unlimited usage volume</li>
+              <li>Cancel anytime</li>
             </ul>
           </div>
         </section>

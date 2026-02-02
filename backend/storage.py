@@ -21,6 +21,7 @@ class SchemaRecord:
     partner_id: str
     schema_definition: Any
     default_mapping: Optional[Dict[str, Any]]
+    metadata: Optional[Dict[str, Any]]
     created_at: str
     updated_at: str
     version: int = 1
@@ -137,6 +138,7 @@ def _schema_to_payload(record: SchemaRecord) -> Dict[str, Any]:
         "partner_id": record.partner_id,
         "schema_definition": record.schema_definition,
         "default_mapping": record.default_mapping,
+        "metadata": record.metadata,
         "created_at": record.created_at,
         "updated_at": record.updated_at,
         "version": record.version,
@@ -151,6 +153,7 @@ def _payload_to_schema(payload: Dict[str, Any]) -> SchemaRecord:
         partner_id=str(payload["partner_id"]),
         schema_definition=payload.get("schema_definition"),
         default_mapping=payload.get("default_mapping"),
+        metadata=payload.get("metadata"),
         created_at=str(payload.get("created_at", _utc_now())),
         updated_at=str(payload.get("updated_at", _utc_now())),
         version=int(payload.get("version", 1)),
@@ -197,6 +200,7 @@ def create_schema(
     partner_id: str,
     schema_definition: Any,
     default_mapping: Optional[Dict[str, Any]] = None,
+    metadata: Optional[Dict[str, Any]] = None,
     api_key: Optional[str] = None,
 ) -> SchemaRecord:
     schema_id = f"schema_{uuid4().hex[:6]}"
@@ -207,6 +211,7 @@ def create_schema(
         partner_id=partner_id,
         schema_definition=schema_definition,
         default_mapping=default_mapping,
+        metadata=metadata,
         created_at=now,
         updated_at=now,
         api_key=api_key,

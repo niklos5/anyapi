@@ -1,6 +1,6 @@
 import { MappingSpec } from "@/lib/mapping";
 import { clearAccessToken, getAccessToken, refresh } from "@/lib/auth";
-import { JobStatus } from "@/lib/types";
+import { JobStatus, TransformerMetadata } from "@/lib/types";
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8080";
@@ -104,6 +104,7 @@ export type SchemaSummary = {
   name: string;
   schemaDefinition: unknown;
   defaultMapping?: MappingSpec;
+  metadata?: TransformerMetadata;
   createdAt: string;
   updatedAt: string;
   version: number;
@@ -116,6 +117,7 @@ export const createSchema = async (payload: {
   name: string;
   schemaDefinition: unknown;
   defaultMapping?: MappingSpec;
+  metadata?: TransformerMetadata;
 }) =>
   doRequest<{ schema: SchemaSummary; apiKey?: string }>("/schemas", {
     method: "POST",
@@ -125,6 +127,21 @@ export const createSchema = async (payload: {
 
 export const fetchSchema = async (schemaId: string) =>
   doRequest<{ schema: SchemaSummary }>(`/schemas/${schemaId}`);
+
+export const updateSchema = async (
+  schemaId: string,
+  payload: {
+    name?: string;
+    schemaDefinition?: unknown;
+    defaultMapping?: MappingSpec;
+    metadata?: TransformerMetadata;
+  }
+) =>
+  doRequest<{ schema: SchemaSummary }>(`/schemas/${schemaId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
 
 export const ingestSchema = async (schemaId: string, payload: {
   data: unknown;

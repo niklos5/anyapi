@@ -46,6 +46,13 @@ Required env vars (auth lambdas):
 - `DATABASE_URL` or `DB_HOST`/`DB_USER`/`DB_PASSWORD`/`DB_NAME`/`DB_PORT`
 - `ALLOWED_ORIGINS` (comma-separated)
 - `COOKIE_SECURE`, `COOKIE_SAMESITE`, `COOKIE_DOMAIN`, `COOKIE_PATH`
+- `STRIPE_SECRET_KEY` (billing checkout + portal)
+- `STRIPE_PRICE_ID` (subscription price id)
+- `STRIPE_TRIAL_DAYS` (default 14)
+- `STRIPE_CHECKOUT_SUCCESS_URL`
+- `STRIPE_CHECKOUT_CANCEL_URL`
+- `STRIPE_BILLING_PORTAL_RETURN_URL`
+- `STRIPE_WEBHOOK_SECRET`
 
 Frontend auth configuration:
 

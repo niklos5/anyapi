@@ -9,9 +9,21 @@ CREATE TABLE IF NOT EXISTS anyapi_auth.partners (
     internal_id BIGSERIAL PRIMARY KEY,
     partner_id TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL,
+    stripe_customer_id TEXT,
+    stripe_subscription_id TEXT,
+    stripe_subscription_status TEXT,
+    stripe_trial_ends_at TIMESTAMPTZ,
+    stripe_current_period_end TIMESTAMPTZ,
+    stripe_price_id TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS partners_stripe_customer_unique
+    ON anyapi_auth.partners (stripe_customer_id);
+
+CREATE INDEX IF NOT EXISTS partners_stripe_subscription_idx
+    ON anyapi_auth.partners (stripe_subscription_id);
 
 CREATE TABLE IF NOT EXISTS anyapi_auth.partner_users (
     user_id BIGSERIAL PRIMARY KEY,
