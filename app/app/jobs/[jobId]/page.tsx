@@ -5,7 +5,6 @@ import Link from "next/link";
 import AppShell from "@/components/AppShell";
 import StatusBadge from "@/components/StatusBadge";
 import { fetchJob, JobSummary } from "@/lib/api";
-import { mockJobs } from "@/lib/mock";
 
 type JobDetailPageProps = {
   params: { jobId: string };
@@ -13,25 +12,17 @@ type JobDetailPageProps = {
 
 export default function JobDetailPage({ params }: JobDetailPageProps) {
   const [job, setJob] = useState<JobSummary | null>(null);
-  const [usingMock, setUsingMock] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const loadJob = async () => {
       try {
         const response = await fetchJob(params.jobId);
         setJob(response);
-        setUsingMock(false);
+        setError(null);
       } catch {
-        const fallback =
-          mockJobs.find((item) => item.id === params.jobId) ?? mockJobs[0];
-        setJob({
-          id: fallback.id,
-          name: fallback.name,
-          sourceType: fallback.sourceType,
-          status: fallback.status,
-          createdAt: fallback.createdAt,
-        });
-        setUsingMock(true);
+        setJob(null);
+        setError("Unable to load job details.");
       }
     };
     loadJob();
@@ -41,7 +32,9 @@ export default function JobDetailPage({ params }: JobDetailPageProps) {
     return (
       <AppShell>
         <div className="rounded-2xl bg-white p-6 shadow-sm">
-          <p className="text-sm text-slate-500">Loading job...</p>
+          <p className="text-sm text-slate-500">
+            {error ?? "Loading job..."}
+          </p>
         </div>
       </AppShell>
     );
@@ -70,8 +63,7 @@ export default function JobDetailPage({ params }: JobDetailPageProps) {
               {job.name}
             </h1>
             <p className="mt-2 text-sm text-slate-600">
-              {job.sourceType.toUpperCase()} source • Created {job.createdAt} •
-              Redwood Supply Co.
+              {job.sourceType.toUpperCase()} source • Created {job.createdAt}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -86,69 +78,13 @@ export default function JobDetailPage({ params }: JobDetailPageProps) {
         </div>
 
         <div className="grid gap-6 lg:grid-cols-[1.4fr_0.6fr]">
-          <section className="flex flex-col gap-6">
-            <div className="rounded-2xl bg-white p-6 shadow-sm">
-              <h2 className="text-lg font-semibold text-slate-900">
-                Company profile
-              </h2>
-              <div className="mt-4 grid gap-3 text-sm text-slate-600 sm:grid-cols-2">
-                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                  <p className="text-xs uppercase tracking-wide text-slate-500">
-                    Business unit
-                  </p>
-                  <p className="font-semibold text-slate-900">
-                    Omni-channel Fulfillment
-                  </p>
-                </div>
-                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                  <p className="text-xs uppercase tracking-wide text-slate-500">
-                    SLA target
-                  </p>
-                  <p className="font-semibold text-slate-900">15 min</p>
-                </div>
-                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                  <p className="text-xs uppercase tracking-wide text-slate-500">
-                    Owner
-                  </p>
-                  <p className="font-semibold text-slate-900">
-                    Riley Chen, Data Ops
-                  </p>
-                </div>
-                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                  <p className="text-xs uppercase tracking-wide text-slate-500">
-                    Schema
-                  </p>
-                  <p className="font-semibold text-slate-900">
-                    UnifiedOrder v2
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-2xl bg-white p-6 shadow-sm">
-              <h2 className="text-lg font-semibold text-slate-900">
-                Job timeline
-              </h2>
-              <div className="mt-6 space-y-4 text-sm text-slate-600">
-                {[
-                  "Source connected and validated.",
-                  "Data profiling completed.",
-                  "Schema mapping applied.",
-                  "Ingestion processing started.",
-                  "Results generated and stored.",
-                ].map((item, index) => (
-                  <div key={item} className="flex items-start gap-3">
-                    <div className="mt-1 h-2 w-2 rounded-full bg-slate-900" />
-                    <div>
-                      <p className="font-medium text-slate-900">
-                        Step {index + 1}
-                      </p>
-                      <p>{item}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+          <section className="rounded-2xl bg-white p-6 shadow-sm">
+            <h2 className="text-lg font-semibold text-slate-900">
+              Job overview
+            </h2>
+            <p className="mt-2 text-sm text-slate-600">
+              Track processing status and metrics once data lands.
+            </p>
           </section>
 
           <aside className="flex flex-col gap-6 rounded-2xl bg-white p-6 shadow-sm">
@@ -171,12 +107,6 @@ export default function JobDetailPage({ params }: JobDetailPageProps) {
                     {issuesList.length}
                   </span>
                 </div>
-                <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
-                  <span>Target schema</span>
-                  <span className="font-semibold text-slate-900">
-                    UnifiedOrder
-                  </span>
-                </div>
               </div>
             </div>
             {issuesList.length > 0 && (
@@ -197,11 +127,6 @@ export default function JobDetailPage({ params }: JobDetailPageProps) {
             >
               View results
             </Link>
-            {usingMock && (
-              <p className="text-xs text-slate-500">
-                Backend not reachable, showing sample job.
-              </p>
-            )}
           </aside>
         </div>
       </div>

@@ -5,22 +5,21 @@ import Link from "next/link";
 import AppShell from "@/components/AppShell";
 import StatusBadge from "@/components/StatusBadge";
 import { listJobs, JobSummary } from "@/lib/api";
-import { mockJobs } from "@/lib/mock";
 
 export default function Home() {
   const [jobs, setJobs] = useState<JobSummary[]>([]);
   const [loading, setLoading] = useState(true);
-  const [usingMock, setUsingMock] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const loadJobs = async () => {
       try {
         const response = await listJobs();
         setJobs(response.jobs ?? []);
-        setUsingMock(false);
+        setError(null);
       } catch {
         setJobs([]);
-        setUsingMock(true);
+        setError("Unable to load jobs right now.");
       } finally {
         setLoading(false);
       }
@@ -28,7 +27,6 @@ export default function Home() {
     loadJobs();
   }, []);
 
-  const displayJobs = jobs.length > 0 ? jobs : usingMock ? mockJobs : jobs;
   return (
     <AppShell>
       <section className="flex flex-col gap-6">
@@ -62,7 +60,7 @@ export default function Home() {
                 Existing ingestion jobs
               </h2>
               <span className="text-sm text-slate-500">
-                {displayJobs.length} total
+                {jobs.length} total
               </span>
             </div>
             <div className="mt-6 divide-y divide-slate-200">
@@ -71,7 +69,12 @@ export default function Home() {
                   Loading jobs from backend...
                 </div>
               )}
-              {displayJobs.map((job) => (
+              {!loading && jobs.length === 0 && (
+                <div className="py-6 text-sm text-slate-500">
+                  No ingestion jobs yet.
+                </div>
+              )}
+              {jobs.map((job) => (
                 <div
                   key={job.id}
                   className="flex flex-col gap-4 py-5 sm:flex-row sm:items-center sm:justify-between"
@@ -104,10 +107,8 @@ export default function Home() {
                 </div>
               ))}
             </div>
-            {usingMock && (
-              <p className="mt-4 text-xs text-slate-500">
-                Backend not reachable, showing sample jobs.
-              </p>
+            {error && (
+              <p className="mt-4 text-xs text-rose-600">{error}</p>
             )}
           </div>
 
@@ -128,42 +129,6 @@ export default function Home() {
               >
                 Add data source
               </Link>
-            </div>
-
-            <div className="rounded-2xl bg-white p-6 shadow-sm">
-              <h3 className="text-lg font-semibold text-slate-900">
-                Company profile
-              </h3>
-              <div className="mt-4 space-y-3 text-sm text-slate-600">
-                <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
-                  <span>Company</span>
-                  <span className="font-semibold text-slate-900">
-                    Redwood Supply Co.
-                  </span>
-                </div>
-                <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
-                  <span>Industry</span>
-                  <span className="font-semibold text-slate-900">
-                    Retail & Logistics
-                  </span>
-                </div>
-                <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
-                  <span>Primary region</span>
-                  <span className="font-semibold text-slate-900">
-                    North America
-                  </span>
-                </div>
-                <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
-                  <span>Data sources</span>
-                  <span className="font-semibold text-slate-900">
-                    12 connected
-                  </span>
-                </div>
-              </div>
-              <p className="mt-4 text-xs text-slate-500">
-                Demo tenant showing centralized ingestion for ERP, CRM, and
-                fulfillment feeds.
-              </p>
             </div>
           </div>
         </div>

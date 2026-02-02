@@ -36,7 +36,7 @@ export default function LoginPage() {
           <div>
             <p className="text-sm font-semibold text-slate-900">AnyApi</p>
             <p className="text-xs text-slate-500">
-              Redwood Supply Co. demo tenant
+              Sign in to your workspace
             </p>
           </div>
         </div>

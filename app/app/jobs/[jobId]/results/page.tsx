@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import AppShell from "@/components/AppShell";
 import { fetchJobResults } from "@/lib/api";
-import { mockPreviewRows } from "@/lib/mock";
 
 type JobResultsPageProps = {
   params: { jobId: string };
@@ -12,7 +11,7 @@ type JobResultsPageProps = {
 
 export default function JobResultsPage({ params }: JobResultsPageProps) {
   const [rows, setRows] = useState<Record<string, unknown>[]>([]);
-  const [usingMock, setUsingMock] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const loadResults = async () => {
@@ -33,16 +32,16 @@ export default function JobResultsPage({ params }: JobResultsPageProps) {
         } else {
           setRows([]);
         }
-        setUsingMock(false);
+        setError(null);
       } catch {
-        setRows(mockPreviewRows);
-        setUsingMock(true);
+        setRows([]);
+        setError("Unable to load results right now.");
       }
     };
     loadResults();
   }, [params.jobId]);
 
-  const previewRows = rows.length > 0 ? rows : mockPreviewRows;
+  const previewRows = rows;
   return (
     <AppShell>
       <div className="flex flex-col gap-8">
@@ -55,7 +54,7 @@ export default function JobResultsPage({ params }: JobResultsPageProps) {
               Processed data output
             </h1>
             <p className="mt-2 text-sm text-slate-600">
-              Job ID: {params.jobId} • Redwood Supply Co.
+              Job ID: {params.jobId}
             </p>
           </div>
           <Link
@@ -71,37 +70,43 @@ export default function JobResultsPage({ params }: JobResultsPageProps) {
             <h2 className="text-lg font-semibold text-slate-900">
               Final mapped data
             </h2>
-            <div className="mt-4 overflow-hidden rounded-xl border border-slate-200">
-              <table className="w-full text-left text-xs text-slate-600">
-                <thead className="bg-slate-100 text-[11px] uppercase tracking-wide text-slate-500">
-                  <tr>
-                    {Object.keys(
-                      (previewRows[0] as Record<string, unknown>) ?? {}
-                    ).map((key) => (
-                      <th key={key} className="px-3 py-2">
-                        {key}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {previewRows.map((row, index) => (
-                    <tr key={`row-${index}`} className="border-t">
-                      {Object.values(row as Record<string, unknown>).map(
-                        (value, valueIndex) => (
-                          <td
-                            key={`${index}-${valueIndex}`}
-                            className="px-3 py-2"
-                          >
-                            {String(value)}
-                          </td>
-                        )
-                      )}
+            {previewRows.length === 0 ? (
+              <p className="mt-4 text-sm text-slate-500">
+                No results available yet.
+              </p>
+            ) : (
+              <div className="mt-4 overflow-hidden rounded-xl border border-slate-200">
+                <table className="w-full text-left text-xs text-slate-600">
+                  <thead className="bg-slate-100 text-[11px] uppercase tracking-wide text-slate-500">
+                    <tr>
+                      {Object.keys(
+                        (previewRows[0] as Record<string, unknown>) ?? {}
+                      ).map((key) => (
+                        <th key={key} className="px-3 py-2">
+                          {key}
+                        </th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {previewRows.map((row, index) => (
+                      <tr key={`row-${index}`} className="border-t">
+                        {Object.values(row as Record<string, unknown>).map(
+                          (value, valueIndex) => (
+                            <td
+                              key={`${index}-${valueIndex}`}
+                              className="px-3 py-2"
+                            >
+                              {String(value)}
+                            </td>
+                          )
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </section>
 
           <aside className="flex flex-col gap-6 rounded-2xl bg-white p-6 shadow-sm">
@@ -113,32 +118,18 @@ export default function JobResultsPage({ params }: JobResultsPageProps) {
                 Items flagged during processing.
               </p>
             </div>
-            <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-xs text-rose-800">
-              <p className="font-semibold">2 issues found</p>
-              <ul className="mt-2 space-y-1">
-                <li>• customer_phone: 42 records missing phone number.</li>
-                <li>• order_date: Mixed date formats detected.</li>
-              </ul>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-600">
+              <p className="font-semibold text-slate-900">No issues reported</p>
+              <p className="mt-2">
+                Issues and warnings will appear here after processing.
+              </p>
             </div>
             <button className="rounded-full border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-50">
               Retry ingestion
             </button>
-            {usingMock && (
-              <p className="text-xs text-slate-500">
-                Backend not reachable, showing sample results.
-              </p>
+            {error && (
+              <p className="text-xs text-rose-600">{error}</p>
             )}
-
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-600">
-              <p className="text-sm font-semibold text-slate-900">
-                Customer success notes
-              </p>
-              <ul className="mt-3 space-y-2">
-                <li>Weekly SLA report scheduled for Fridays.</li>
-                <li>Mapped fields align with finance reconciliations.</li>
-                <li>Alerting routed to Data Ops on-call.</li>
-              </ul>
-            </div>
           </aside>
         </div>
       </div>

@@ -7,36 +7,16 @@ import AppShell from "@/components/AppShell";
 import { createSchema, fetchSchema } from "@/lib/api";
 import { parseMappingSpec } from "@/lib/mapping";
 
-const defaultSchema = `{
-  "id": "UnifiedOrder",
-  "fields": {
-    "external_id": "string",
-    "customer_name": "string",
-    "customer_email": "string",
-    "order_total": "number",
-    "order_date": "string"
-  }
-}`;
-
-const defaultMapping = `{
-  "targetSchema": "UnifiedOrder",
-  "mappings": [
-    { "source": "order_id", "target": "external_id", "transform": "string" },
-    { "source": "customer.name", "target": "customer_name" },
-    { "source": "customer.email", "target": "customer_email" },
-    { "source": "total", "target": "order_total", "transform": "number" },
-    { "source": "created_at", "target": "order_date", "transform": "date" }
-  ]
-}`;
+const defaultSchema = "{}";
 
 export default function NewSchemaClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const cloneId = searchParams.get("clone");
 
-  const [name, setName] = useState("UnifiedOrder");
+  const [name, setName] = useState("");
   const [schemaText, setSchemaText] = useState(defaultSchema);
-  const [mappingText, setMappingText] = useState(defaultMapping);
+  const [mappingText, setMappingText] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [apiKey, setApiKey] = useState<string | null>(null);

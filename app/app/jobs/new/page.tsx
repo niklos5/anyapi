@@ -6,26 +6,15 @@ import { useRouter } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import { analyzeSource, ingestSchema, listSchemas, SchemaSummary } from "@/lib/api";
 import { parseMappingSpec } from "@/lib/mapping";
-import { sampleSourceData } from "@/lib/sample-data";
-
-const defaultMapping = `{
-  "targetSchema": "UnifiedOrder",
-  "mappings": [
-    { "source": "order_id", "target": "external_id", "transform": "string" },
-    { "source": "customer.name", "target": "customer_name" },
-    { "source": "customer.email", "target": "customer_email" },
-    { "source": "total", "target": "order_total", "transform": "number" },
-    { "source": "created_at", "target": "order_date", "transform": "date" }
-  ]
-}`;
 
 export default function NewIngestionPage() {
   const router = useRouter();
   const [sourceType, setSourceType] = useState("file");
-  const [mappingText, setMappingText] = useState(defaultMapping);
+  const [mappingText, setMappingText] = useState("");
   const [schemas, setSchemas] = useState<SchemaSummary[]>([]);
   const [selectedSchemaId, setSelectedSchemaId] = useState<string>("");
   const [loadingSchemas, setLoadingSchemas] = useState(true);
+  const [sourcePayloadText, setSourcePayloadText] = useState("");
   const [analysis, setAnalysis] = useState<{
     schema: Record<string, string>;
     preview: Record<string, unknown>[];
@@ -64,11 +53,29 @@ export default function NewIngestionPage() {
     }
   }, [selectedSchema]);
 
+  const parseSourcePayload = () => {
+    if (!sourcePayloadText.trim()) {
+      setError("Paste a sample JSON payload before continuing.");
+      return null;
+    }
+    try {
+      return JSON.parse(sourcePayloadText);
+    } catch {
+      setError("Source payload must be valid JSON.");
+      return null;
+    }
+  };
+
   const handleAnalyze = async () => {
     setLoadingAnalysis(true);
     setError(null);
     try {
-      const response = await analyzeSource(sampleSourceData);
+      const payload = parseSourcePayload();
+      if (!payload) {
+        setLoadingAnalysis(false);
+        return;
+      }
+      const response = await analyzeSource(payload);
       setAnalysis(response);
     } catch (err) {
       setError("Failed to analyze data source.");
@@ -94,10 +101,15 @@ export default function NewIngestionPage() {
       return;
     }
     try {
+      const payload = parseSourcePayload();
+      if (!payload) {
+        setSubmitting(false);
+        return;
+      }
       const response = await ingestSchema(selectedSchemaId, {
-        name: "Sample ingestion job",
+        name: "Ingestion job",
         sourceType,
-        data: sampleSourceData,
+        data: payload,
         mapping: parsed,
       });
       router.push(`/app/jobs/${response.job.id}`);
@@ -108,10 +120,7 @@ export default function NewIngestionPage() {
     }
   };
 
-  const previewRows =
-    analysis?.preview && analysis.preview.length > 0
-      ? analysis.preview
-      : sampleSourceData;
+  const previewRows = analysis?.preview ?? [];
 
   return (
     <AppShell>
@@ -125,9 +134,8 @@ export default function NewIngestionPage() {
               Create a new ingestion job
             </h1>
             <p className="mt-2 text-base text-slate-600">
-              Redwood Supply Co. is onboarding its fulfillment and commerce
-              feeds. Connect a data source, review the automatic analysis, and
-              map it to your target schema.
+              Connect a data source, review the automatic analysis, and map it
+              to your target schema.
             </p>
           </div>
           <Link
@@ -216,9 +224,6 @@ export default function NewIngestionPage() {
                   <p className="font-semibold text-slate-900">
                     Upload a CSV or JSON file
                   </p>
-                  <p className="text-xs text-slate-500">
-                    Latest feed: `fulfillment_shipments_2026_01.csv`
-                  </p>
                   <div className="flex items-center justify-between rounded-lg border border-dashed border-slate-300 bg-white px-4 py-3">
                     <span>Drop file here or browse</span>
                     <button className="rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white">
@@ -234,7 +239,7 @@ export default function NewIngestionPage() {
                   </p>
                   <input
                     className="rounded-lg border border-slate-300 bg-white px-3 py-2"
-                    placeholder="https://api.redwoodco.com/orders"
+                    placeholder="https://api.example.com/orders"
                   />
                   <input
                     className="rounded-lg border border-slate-300 bg-white px-3 py-2"
@@ -249,7 +254,7 @@ export default function NewIngestionPage() {
                   </p>
                   <input
                     className="rounded-lg border border-slate-300 bg-white px-3 py-2"
-                    placeholder="s3://redwood-data/ingest/"
+                    placeholder="s3://bucket-name/ingest/"
                   />
                   <input
                     className="rounded-lg border border-slate-300 bg-white px-3 py-2"
@@ -266,12 +271,19 @@ export default function NewIngestionPage() {
               <p className="text-sm text-slate-500">
                 We inspect the data to detect fields and potential issues.
               </p>
+              <textarea
+                className="mt-4 min-h-[140px] w-full rounded-xl border border-slate-300 bg-white p-3 font-mono text-xs text-slate-800"
+                placeholder="Paste a sample JSON payload here (array or object)."
+                value={sourcePayloadText}
+                onChange={(event) => setSourcePayloadText(event.target.value)}
+              />
               <button
                 type="button"
                 onClick={handleAnalyze}
+                disabled={loadingAnalysis || !sourcePayloadText.trim()}
                 className="mt-4 inline-flex items-center justify-center rounded-full border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-900 hover:bg-slate-50"
               >
-                {loadingAnalysis ? "Analyzing..." : "Analyze sample data"}
+                {loadingAnalysis ? "Analyzing..." : "Analyze data"}
               </button>
               <div className="mt-4 grid gap-4 md:grid-cols-3">
                 {[
@@ -327,37 +339,43 @@ export default function NewIngestionPage() {
                 Sample rows after processing.
               </p>
             </div>
-            <div className="overflow-hidden rounded-xl border border-slate-200">
-              <table className="w-full text-left text-xs text-slate-600">
-                <thead className="bg-slate-100 text-[11px] uppercase tracking-wide text-slate-500">
-                  <tr>
-                    {Object.keys(
-                      (previewRows[0] as Record<string, unknown>) ?? {}
-                    ).map((key) => (
-                      <th key={key} className="px-3 py-2">
-                        {key}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {previewRows.map((row, index) => (
-                    <tr key={`row-${index}`} className="border-t">
-                      {Object.values(row as Record<string, unknown>).map(
-                        (value, valueIndex) => (
-                          <td
-                            key={`${index}-${valueIndex}`}
-                            className="px-3 py-2"
-                          >
-                            {String(value)}
-                          </td>
-                        )
-                      )}
+            {previewRows.length === 0 ? (
+              <p className="text-sm text-slate-500">
+                Run analysis to preview mapped rows.
+              </p>
+            ) : (
+              <div className="overflow-hidden rounded-xl border border-slate-200">
+                <table className="w-full text-left text-xs text-slate-600">
+                  <thead className="bg-slate-100 text-[11px] uppercase tracking-wide text-slate-500">
+                    <tr>
+                      {Object.keys(
+                        (previewRows[0] as Record<string, unknown>) ?? {}
+                      ).map((key) => (
+                        <th key={key} className="px-3 py-2">
+                          {key}
+                        </th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {previewRows.map((row, index) => (
+                      <tr key={`row-${index}`} className="border-t">
+                        {Object.values(row as Record<string, unknown>).map(
+                          (value, valueIndex) => (
+                            <td
+                              key={`${index}-${valueIndex}`}
+                              className="px-3 py-2"
+                            >
+                              {String(value)}
+                            </td>
+                          )
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-800">
               <p className="font-semibold">Detected issues</p>
               <ul className="mt-2 space-y-1">
@@ -383,18 +401,6 @@ export default function NewIngestionPage() {
             >
               {submitting ? "Running..." : "Confirm and run ingestion"}
             </button>
-
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-600">
-              <p className="text-sm font-semibold text-slate-900">
-                Company context
-              </p>
-              <ul className="mt-3 space-y-2">
-                <li>Tenant: Redwood Supply Co.</li>
-                <li>Target schema: UnifiedOrder v2</li>
-                <li>Pipeline owner: Data Ops Team</li>
-                <li>SLAs: 15-minute freshness</li>
-              </ul>
-            </div>
           </aside>
         </div>
       </div>
