@@ -1,4 +1,5 @@
 import { MappingSpec } from "@/lib/mapping";
+import { clearAccessToken, getAccessToken, refresh } from "@/lib/auth";
 import { JobStatus } from "@/lib/types";
 
 const BASE_URL =
@@ -12,66 +13,126 @@ export type JobSummary = {
   createdAt: string;
 };
 
-const authHeaders = (): Record<string, string> => ({});
-
-export const analyzeSource = async (data: unknown) => {
-  const response = await fetch(`${BASE_URL}/analyze`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
-    body: JSON.stringify({ data }),
-  });
-  if (!response.ok) {
-    throw new Error("Failed to analyze source");
-  }
-  return response.json();
+type RequestOptions = {
+  method?: string;
+  body?: string;
+  headers?: Record<string, string>;
+  skipAuth?: boolean;
 };
+
+const withAuthHeaders = (
+  options: RequestOptions = {}
+): Record<string, string> => {
+  const headers: Record<string, string> = { ...(options.headers ?? {}) };
+  const token = getAccessToken();
+  if (!options.skipAuth && token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  return headers;
+};
+
+const doRequest = async <T>(
+  path: string,
+  options: RequestOptions = {},
+  hasRetried = false
+): Promise<T> => {
+  const response = await fetch(`${BASE_URL}${path}`, {
+    method: options.method ?? "GET",
+    headers: withAuthHeaders(options),
+    body: options.body,
+  });
+
+  if (response.status === 401 && !options.skipAuth && !hasRetried) {
+    try {
+      const token = await refresh();
+      if (token) {
+        return doRequest<T>(path, options, true);
+      }
+    } catch {
+      // fall through
+    }
+    clearAccessToken();
+    if (typeof window !== "undefined") {
+      window.location.href = "/login";
+    }
+  }
+
+  if (!response.ok) {
+    throw new Error("Request failed");
+  }
+
+  return response.json() as Promise<T>;
+};
+
+export const analyzeSource = async (data: unknown) =>
+  doRequest<{ schema: Record<string, string>; preview: unknown[]; issues: unknown[] }>(
+    "/analyze",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ data }),
+    }
+  );
 
 export const createJob = async (payload: {
   name: string;
   sourceType: string;
   data: unknown;
   mapping: MappingSpec;
-}) => {
-  const response = await fetch(`${BASE_URL}/jobs`, {
+}) =>
+  doRequest<{ job: JobSummary; result?: unknown }>("/jobs", {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  if (!response.ok) {
-    throw new Error("Failed to create job");
-  }
-  return response.json();
+
+export const listJobs = async (): Promise<{ jobs: JobSummary[] }> =>
+  doRequest("/jobs");
+
+export const fetchJob = async (jobId: string) =>
+  doRequest(`/jobs/${jobId}`);
+
+export const fetchJobResults = async (jobId: string) =>
+  doRequest(`/jobs/${jobId}/results`);
+
+export type SchemaSummary = {
+  id: string;
+  name: string;
+  schemaDefinition: unknown;
+  defaultMapping?: MappingSpec;
+  createdAt: string;
+  updatedAt: string;
+  version: number;
 };
 
-export const listJobs = async (): Promise<{ jobs: JobSummary[] }> => {
-  const response = await fetch(`${BASE_URL}/jobs`, {
-    method: "GET",
-    headers: { ...authHeaders() },
-  });
-  if (!response.ok) {
-    throw new Error("Failed to fetch jobs");
-  }
-  return response.json();
-};
+export const listSchemas = async (): Promise<{ schemas: SchemaSummary[] }> =>
+  doRequest("/schemas");
 
-export const fetchJob = async (jobId: string) => {
-  const response = await fetch(`${BASE_URL}/jobs/${jobId}`, {
-    method: "GET",
-    headers: { ...authHeaders() },
+export const createSchema = async (payload: {
+  name: string;
+  schemaDefinition: unknown;
+  defaultMapping?: MappingSpec;
+}) =>
+  doRequest<{ schema: SchemaSummary; apiKey?: string }>("/schemas", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
   });
-  if (!response.ok) {
-    throw new Error("Failed to fetch job");
-  }
-  return response.json();
-};
 
-export const fetchJobResults = async (jobId: string) => {
-  const response = await fetch(`${BASE_URL}/jobs/${jobId}/results`, {
-    method: "GET",
-    headers: { ...authHeaders() },
-  });
-  if (!response.ok) {
-    throw new Error("Failed to fetch job results");
-  }
-  return response.json();
-};
+export const fetchSchema = async (schemaId: string) =>
+  doRequest<{ schema: SchemaSummary }>(`/schemas/${schemaId}`);
+
+export const ingestSchema = async (schemaId: string, payload: {
+  data: unknown;
+  name?: string;
+  sourceType?: string;
+  mapping?: MappingSpec;
+}) =>
+  doRequest<{ job: JobSummary; result?: unknown }>(
+    `/schemas/${schemaId}/ingest`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }
+  );

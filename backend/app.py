@@ -1,15 +1,31 @@
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
+from uuid import uuid4
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from auth import require_auth
-from mapping_executor import MappingExecutor, flatten_target_schema
+from mapping_executor import flatten_target_schema
+from roaster_mapping_executor import MappingExecutor
+from roaster_mapping_repair import repair_mapping_spec
+from roaster_mapping_validator import validate_mapping_spec
 from schema_fingerprint import SchemaStructureExtractor
-from storage import create_job, get_job, list_jobs, update_job
+from storage import (
+    create_job,
+    create_schema,
+    delete_schema,
+    get_job,
+    get_schema,
+    get_schema_by_api_key,
+    get_schema_by_id,
+    list_jobs,
+    list_schemas,
+    update_job,
+    update_schema,
+)
 
 
 class AnalyzeRequest(BaseModel):
@@ -18,7 +34,7 @@ class AnalyzeRequest(BaseModel):
 
 class MappingSpec(BaseModel):
     targetSchema: Optional[Any] = None
-    mappings: List[Dict[str, Any]] = Field(default_factory=list)
+    mappings: Any = Field(default_factory=list)
     defaults: Optional[Dict[str, Any]] = None
 
 
@@ -27,6 +43,26 @@ class CreateJobRequest(BaseModel):
     sourceType: str
     data: Any
     mapping: MappingSpec
+
+
+class DeploySchemaRequest(BaseModel):
+    name: str
+    schemaDefinition: Optional[Any] = None
+    schemaSample: Optional[Any] = None
+    defaultMapping: Optional[MappingSpec] = None
+
+
+class UpdateSchemaRequest(BaseModel):
+    name: Optional[str] = None
+    schemaDefinition: Optional[Any] = None
+    defaultMapping: Optional[MappingSpec] = None
+
+
+class IngestSchemaRequest(BaseModel):
+    data: Any
+    name: Optional[str] = None
+    sourceType: Optional[str] = None
+    mapping: Optional[MappingSpec] = None
 
 
 app = FastAPI(title="AnyApi Roaster Service", version="0.1.0")
@@ -49,6 +85,148 @@ def _normalize_target_path(path: str) -> str:
     normalized = normalized.replace("[*]", "")
     normalized = normalized.replace("[]", "")
     return normalized
+
+
+def _normalize_source_path(path: Any) -> Optional[str]:
+    if path is None:
+        return None
+    if not isinstance(path, str):
+        return None
+    trimmed = path.strip()
+    if not trimmed:
+        return None
+    if trimmed.startswith("$"):
+        return trimmed
+    return f"$.{trimmed}"
+
+
+def _choose_items_path(payload: Any) -> str:
+    if isinstance(payload, list):
+        return "$[]"
+    if isinstance(payload, dict):
+        for key in ("items", "data", "records"):
+            value = payload.get(key)
+            if isinstance(value, list):
+                return f"$.{key}[]"
+    return "$.items[]"
+
+
+def _mapping_transform(transform: Optional[str]) -> Optional[str]:
+    if transform == "string":
+        return "to_string"
+    if transform == "number":
+        return "to_float"
+    if transform == "integer":
+        return "to_int"
+    if transform == "boolean":
+        return "to_boolean"
+    if transform == "date":
+        return "to_string"
+    return None
+
+
+def _build_roaster_mapping_from_list(
+    mapping_spec: Dict[str, Any], payload: Any
+) -> Dict[str, Any]:
+    items_path = _choose_items_path(payload)
+    entries = mapping_spec.get("mappings") or []
+    defaults = mapping_spec.get("defaults") or {}
+    roaster_map: Dict[str, Any] = {}
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        target = entry.get("target")
+        if not isinstance(target, str):
+            continue
+        source = entry.get("source")
+        if isinstance(source, list):
+            sources = [_normalize_source_path(item) for item in source]
+            sources = [item for item in sources if item]
+            normalized_source: Any = sources if sources else None
+        else:
+            normalized_source = _normalize_source_path(source)
+        spec: Dict[str, Any] = {"source": normalized_source}
+        transform = _mapping_transform(entry.get("transform"))
+        if transform:
+            spec["transform"] = transform
+        if entry.get("required") is True:
+            spec["required"] = True
+        if isinstance(entry.get("match"), dict):
+            spec["match"] = entry["match"]
+        if entry.get("default") is not None:
+            defaults[target] = entry["default"]
+        roaster_map[target] = spec
+
+    return {
+        "version": "1.0",
+        "defaults": defaults,
+        "broadcast": {},
+        "mappings": {"items": {"path": items_path, "map": roaster_map}},
+    }
+
+
+def _auto_mapping_spec(payload: Any, target_schema: Any) -> Dict[str, Any]:
+    extractor = SchemaStructureExtractor(max_items_per_array=10)
+    input_schema = extractor.extract(payload)
+    items_path = _choose_items_path(payload)
+    target_paths: Dict[str, Any] = _extract_target_paths(target_schema)
+    item_targets = {
+        _normalize_target_path(path): path
+        for path in target_paths.keys()
+        if isinstance(path, str) and ".items[]" in path
+    }
+    normalized_sources = {
+        _normalize_target_path(path): path
+        for path in input_schema.keys()
+        if isinstance(path, str)
+    }
+
+    def _pick_source(target_field: str) -> Optional[str]:
+        if target_field in normalized_sources:
+            return normalized_sources[target_field]
+        target_tail = target_field.split(".")[-1]
+        for normalized, original in normalized_sources.items():
+            if normalized.split(".")[-1] == target_tail:
+                return original
+        return None
+
+    roaster_map: Dict[str, Any] = {}
+    for normalized_target in sorted(item_targets.keys()):
+        source_path = _pick_source(normalized_target)
+        roaster_map[normalized_target] = {
+            "source": source_path if source_path else None
+        }
+
+    return {
+        "version": "1.0",
+        "defaults": {},
+        "broadcast": {},
+        "mappings": {"items": {"path": items_path, "map": roaster_map}},
+    }
+
+
+def _prepare_roaster_mapping(
+    mapping_spec: Optional[Dict[str, Any]],
+    payload: Any,
+    target_schema: Any,
+) -> Dict[str, Any]:
+    if not mapping_spec:
+        return _auto_mapping_spec(payload, target_schema)
+    mappings_value = mapping_spec.get("mappings")
+    if isinstance(mappings_value, list):
+        return _build_roaster_mapping_from_list(mapping_spec, payload)
+    if isinstance(mappings_value, dict):
+        return mapping_spec
+    return _auto_mapping_spec(payload, target_schema)
+
+
+def _extract_target_paths(target_schema: Any) -> Dict[str, Any]:
+    if isinstance(target_schema, dict):
+        if any(isinstance(key, str) and key.startswith("$") for key in target_schema.keys()):
+            return target_schema
+    if isinstance(target_schema, (dict, list)):
+        return flatten_target_schema(target_schema)
+    return {}
 
 
 def _extract_preview_rows(data: Any, limit: int = 3) -> List[Dict[str, Any]]:
@@ -109,33 +287,249 @@ def analyze_payload(
     return {"schema": schema, "preview": preview, "issues": issues}
 
 
-@app.post("/jobs")
-def create_ingestion_job(
-    request: CreateJobRequest, claims: Dict[str, Any] = Depends(require_auth)
+@app.post("/schemas")
+def deploy_schema(
+    request: DeploySchemaRequest, claims: Dict[str, Any] = Depends(require_auth)
 ) -> Dict[str, Any]:
-    mapping_spec = request.mapping.dict()
-    if not mapping_spec.get("mappings"):
-        raise HTTPException(status_code=400, detail="Mapping spec is required.")
+    partner_id = str(claims.get("partner_id"))
+    default_mapping = request.defaultMapping.dict() if request.defaultMapping else None
+    schema_definition = request.schemaDefinition
+    if schema_definition is None and request.schemaSample is not None:
+        extractor = SchemaStructureExtractor(max_items_per_array=10)
+        schema_definition = extractor.extract(request.schemaSample)
+    if schema_definition is None:
+        raise HTTPException(status_code=400, detail="schemaDefinition or schemaSample is required.")
+    api_key = f"api_{uuid4().hex}"
+    record = create_schema(
+        name=request.name,
+        partner_id=partner_id,
+        schema_definition=schema_definition,
+        default_mapping=default_mapping,
+        api_key=api_key,
+    )
+    return {
+        "schema": {
+            "id": record.id,
+            "name": record.name,
+            "schemaDefinition": record.schema_definition,
+            "defaultMapping": record.default_mapping,
+            "createdAt": record.created_at,
+            "updatedAt": record.updated_at,
+            "version": record.version,
+        },
+        "apiKey": api_key,
+    }
 
-    target_schema = mapping_spec.get("targetSchema")
-    target_paths: List[str] = []
-    if isinstance(target_schema, (dict, list)):
-        flattened = flatten_target_schema(target_schema)
-        target_paths = [_normalize_target_path(path) for path in flattened.keys()]
 
-    executor = MappingExecutor(mapping_spec, target_paths=target_paths)
+@app.get("/schemas")
+def get_schemas(claims: Dict[str, Any] = Depends(require_auth)) -> Dict[str, Any]:
+    partner_id = str(claims.get("partner_id"))
+    return {
+        "schemas": [
+            {
+                "id": schema.id,
+                "name": schema.name,
+                "schemaDefinition": schema.schema_definition,
+                "defaultMapping": schema.default_mapping,
+                "createdAt": schema.created_at,
+                "updatedAt": schema.updated_at,
+                "version": schema.version,
+            }
+            for schema in list_schemas(partner_id)
+        ]
+    }
+
+
+@app.get("/schemas/{schema_id}")
+def get_schema_detail(
+    schema_id: str, claims: Dict[str, Any] = Depends(require_auth)
+) -> Dict[str, Any]:
+    partner_id = str(claims.get("partner_id"))
+    record = get_schema(schema_id, partner_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Schema not found")
+    return {
+        "schema": {
+            "id": record.id,
+            "name": record.name,
+            "schemaDefinition": record.schema_definition,
+            "defaultMapping": record.default_mapping,
+            "createdAt": record.created_at,
+            "updatedAt": record.updated_at,
+            "version": record.version,
+        }
+    }
+
+
+@app.put("/schemas/{schema_id}")
+def put_schema_detail(
+    schema_id: str,
+    request: UpdateSchemaRequest,
+    claims: Dict[str, Any] = Depends(require_auth),
+) -> Dict[str, Any]:
+    partner_id = str(claims.get("partner_id"))
+    payload: Dict[str, Any] = {}
+    if request.name is not None:
+        payload["name"] = request.name
+    if request.schemaDefinition is not None:
+        payload["schema_definition"] = request.schemaDefinition
+    if request.defaultMapping is not None:
+        payload["default_mapping"] = request.defaultMapping.dict()
+    record = update_schema(schema_id, partner_id, **payload)
+    if not record:
+        raise HTTPException(status_code=404, detail="Schema not found")
+    return {
+        "schema": {
+            "id": record.id,
+            "name": record.name,
+            "schemaDefinition": record.schema_definition,
+            "defaultMapping": record.default_mapping,
+            "createdAt": record.created_at,
+            "updatedAt": record.updated_at,
+            "version": record.version,
+        }
+    }
+
+
+@app.delete("/schemas/{schema_id}")
+def delete_schema_detail(
+    schema_id: str, claims: Dict[str, Any] = Depends(require_auth)
+) -> Dict[str, Any]:
+    partner_id = str(claims.get("partner_id"))
+    deleted = delete_schema(schema_id, partner_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Schema not found")
+    return {"deleted": True}
+
+
+@app.post("/schemas/{schema_id}/ingest")
+def ingest_to_schema(
+    schema_id: str,
+    request: IngestSchemaRequest,
+    authorization: str = Header(default=""),
+    x_api_key: str = Header(default="", alias="x-api-key"),
+) -> Dict[str, Any]:
+    schema = None
+    partner_id = None
+    if authorization:
+        claims = require_auth(authorization)
+        partner_id = str(claims.get("partner_id"))
+        schema = get_schema(schema_id, partner_id)
+    elif x_api_key:
+        schema = get_schema_by_api_key(x_api_key)
+        if schema and schema.id != schema_id:
+            schema = None
+        if schema:
+            partner_id = schema.partner_id
+    else:
+        raise HTTPException(status_code=401, detail="Missing authentication")
+
+    if not schema:
+        raise HTTPException(status_code=404, detail="Schema not found")
+
+    mapping_spec = request.mapping.dict() if request.mapping else None
+    if mapping_spec is None and schema.default_mapping:
+        mapping_spec = schema.default_mapping
+
+    target_schema = (mapping_spec or {}).get("targetSchema") or schema.schema_definition
+    roaster_mapping = _prepare_roaster_mapping(mapping_spec, request.data, target_schema)
+
+    flattened = _extract_target_paths(target_schema)
+    target_paths = [
+        _normalize_target_path(path)
+        for path in flattened.keys()
+        if isinstance(path, str) and ".items[]" in path
+    ]
+
+    roaster_mapping, _ = repair_mapping_spec(roaster_mapping, allowed_targets=set(target_paths))
+    if not roaster_mapping:
+        raise HTTPException(status_code=400, detail="Unable to build mapping spec.")
+    validation_errors = validate_mapping_spec(roaster_mapping)
+    if validation_errors:
+        raise HTTPException(status_code=400, detail="; ".join(validation_errors))
+
+    executor = MappingExecutor(roaster_mapping, canonical_schema_paths=target_paths)
     result = executor.execute(request.data)
 
-    partner_id = str(claims.get("partner_id"))
+    record = create_job(
+        name=request.name or f"Ingest {schema.name}",
+        source_type=request.sourceType or "api",
+        partner_id=partner_id,
+        data=request.data,
+        mapping=roaster_mapping,
+        target_schema=target_schema,
+        schema_id=schema_id,
+    )
+    update_job(record.id, partner_id=partner_id, status="completed", result=result)
+
+    return {
+        "job": {
+            "id": record.id,
+            "name": record.name,
+            "sourceType": record.source_type,
+            "status": "completed",
+            "createdAt": record.created_at,
+            "schemaId": schema_id,
+        },
+        "result": result,
+    }
+
+
+@app.post("/jobs")
+def create_ingestion_job(
+    request: CreateJobRequest,
+    authorization: str = Header(default=""),
+    x_api_key: str = Header(default="", alias="x-api-key"),
+) -> Dict[str, Any]:
+    mapping_spec = request.mapping.dict()
+    target_schema = mapping_spec.get("targetSchema")
+
+    schema_id = None
+    partner_id = None
+    if authorization:
+        claims = require_auth(authorization)
+        partner_id = str(claims.get("partner_id"))
+    elif x_api_key:
+        schema = get_schema_by_api_key(x_api_key)
+        if schema:
+            partner_id = schema.partner_id
+            schema_id = schema.id
+            if not target_schema:
+                target_schema = schema.schema_definition
+    else:
+        raise HTTPException(status_code=401, detail="Missing authentication")
+
+    if not partner_id:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    roaster_mapping = _prepare_roaster_mapping(mapping_spec, request.data, target_schema)
+
+    flattened = _extract_target_paths(target_schema)
+    target_paths = [
+        _normalize_target_path(path)
+        for path in flattened.keys()
+        if isinstance(path, str) and ".items[]" in path
+    ]
+
+    roaster_mapping, _ = repair_mapping_spec(roaster_mapping, allowed_targets=set(target_paths))
+    if not roaster_mapping:
+        raise HTTPException(status_code=400, detail="Unable to build mapping spec.")
+    validation_errors = validate_mapping_spec(roaster_mapping)
+    if validation_errors:
+        raise HTTPException(status_code=400, detail="; ".join(validation_errors))
+
+    executor = MappingExecutor(roaster_mapping, canonical_schema_paths=target_paths)
+    result = executor.execute(request.data)
+
     record = create_job(
         name=request.name,
         source_type=request.sourceType,
         partner_id=partner_id,
         data=request.data,
-        mapping=mapping_spec,
+        mapping=roaster_mapping,
         target_schema=target_schema,
+        schema_id=schema_id,
     )
-    update_job(record.id, status="completed", result=result)
+    update_job(record.id, partner_id=partner_id, status="completed", result=result)
 
     return {
         "job": {
@@ -160,6 +554,7 @@ def get_jobs(claims: Dict[str, Any] = Depends(require_auth)) -> Dict[str, Any]:
                 "sourceType": job.source_type,
                 "status": job.status,
                 "createdAt": job.created_at,
+            "schemaId": job.schema_id,
             }
             for job in list_jobs(partner_id)
         ]
@@ -180,6 +575,7 @@ def get_job_detail(
         "sourceType": job.source_type,
         "status": job.status,
         "createdAt": job.created_at,
+        "schemaId": job.schema_id,
     }
 
 

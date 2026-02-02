@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AppShell from "@/components/AppShell";
-import { analyzeSource, createJob } from "@/lib/api";
+import { analyzeSource, ingestSchema, listSchemas, SchemaSummary } from "@/lib/api";
 import { parseMappingSpec } from "@/lib/mapping";
 import { sampleSourceData } from "@/lib/sample-data";
 
@@ -23,6 +23,9 @@ export default function NewIngestionPage() {
   const router = useRouter();
   const [sourceType, setSourceType] = useState("file");
   const [mappingText, setMappingText] = useState(defaultMapping);
+  const [schemas, setSchemas] = useState<SchemaSummary[]>([]);
+  const [selectedSchemaId, setSelectedSchemaId] = useState<string>("");
+  const [loadingSchemas, setLoadingSchemas] = useState(true);
   const [analysis, setAnalysis] = useState<{
     schema: Record<string, string>;
     preview: Record<string, unknown>[];
@@ -31,6 +34,35 @@ export default function NewIngestionPage() {
   const [loadingAnalysis, setLoadingAnalysis] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadSchemas = async () => {
+      try {
+        const response = await listSchemas();
+        const items = response.schemas ?? [];
+        setSchemas(items);
+        if (items.length > 0) {
+          setSelectedSchemaId(items[0].id);
+        }
+      } catch {
+        setSchemas([]);
+      } finally {
+        setLoadingSchemas(false);
+      }
+    };
+    loadSchemas();
+  }, []);
+
+  const selectedSchema = useMemo(
+    () => schemas.find((schema) => schema.id === selectedSchemaId) ?? null,
+    [schemas, selectedSchemaId]
+  );
+
+  useEffect(() => {
+    if (selectedSchema?.defaultMapping) {
+      setMappingText(JSON.stringify(selectedSchema.defaultMapping, null, 2));
+    }
+  }, [selectedSchema]);
 
   const handleAnalyze = async () => {
     setLoadingAnalysis(true);
@@ -48,20 +80,27 @@ export default function NewIngestionPage() {
   const handleRun = async () => {
     setSubmitting(true);
     setError(null);
-    const parsed = parseMappingSpec(mappingText);
+    if (!selectedSchemaId) {
+      setError("Select a target schema before running ingestion.");
+      setSubmitting(false);
+      return;
+    }
+    const parsed = mappingText.trim()
+      ? parseMappingSpec(mappingText)
+      : selectedSchema?.defaultMapping ?? null;
     if (!parsed) {
       setError("Mapping spec must be valid JSON with a mappings array.");
       setSubmitting(false);
       return;
     }
     try {
-      const response = await createJob({
+      const response = await ingestSchema(selectedSchemaId, {
         name: "Sample ingestion job",
         sourceType,
         data: sampleSourceData,
         mapping: parsed,
       });
-      router.push(`/jobs/${response.job.id}`);
+      router.push(`/app/jobs/${response.job.id}`);
     } catch (err) {
       setError("Failed to create ingestion job.");
     } finally {
@@ -92,7 +131,7 @@ export default function NewIngestionPage() {
             </p>
           </div>
           <Link
-            href="/"
+            href="/app"
             className="text-sm font-semibold text-slate-600 hover:text-slate-900"
           >
             ← Back to dashboard
@@ -101,6 +140,48 @@ export default function NewIngestionPage() {
 
         <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
           <section className="flex flex-col gap-6 rounded-2xl bg-white p-6 shadow-sm">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">
+                0. Select a target schema
+              </h2>
+              <p className="text-sm text-slate-500">
+                Choose a deployed schema or create a new one.
+              </p>
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                <select
+                  className="min-w-[220px] rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
+                  value={selectedSchemaId}
+                  onChange={(event) => setSelectedSchemaId(event.target.value)}
+                  disabled={loadingSchemas || schemas.length === 0}
+                >
+                  {schemas.length === 0 && (
+                    <option value="">No schemas deployed</option>
+                  )}
+                  {schemas.map((schema) => (
+                    <option key={schema.id} value={schema.id}>
+                      {schema.name} (v{schema.version})
+                    </option>
+                  ))}
+                </select>
+                <Link
+                  href="/app/schemas/new"
+                  className="text-sm font-semibold text-slate-600 hover:text-slate-900"
+                >
+                  + Deploy new schema
+                </Link>
+              </div>
+              {selectedSchema && (
+                <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                  <p className="font-semibold text-slate-900">
+                    {selectedSchema.name}
+                  </p>
+                  <p className="mt-1">
+                    Updated {selectedSchema.updatedAt} • Version{" "}
+                    {selectedSchema.version}
+                  </p>
+                </div>
+              )}
+            </div>
             <div>
               <h2 className="text-lg font-semibold text-slate-900">
                 1. Connect a data source

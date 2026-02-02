@@ -3,10 +3,11 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { login } from "@/lib/auth";
+import { signup } from "@/lib/auth";
 
-export default function LoginPage() {
+export default function SignupPage() {
   const router = useRouter();
+  const [company, setCompany] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -17,10 +18,10 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
     try {
-      await login(email, password);
+      await signup({ company, email, password });
       router.replace("/app");
     } catch {
-      setError("Invalid credentials or auth service unavailable.");
+      setError("Unable to create account.");
     } finally {
       setLoading(false);
     }
@@ -36,12 +37,25 @@ export default function LoginPage() {
           <div>
             <p className="text-sm font-semibold text-slate-900">AnyApi</p>
             <p className="text-xs text-slate-500">
-              Redwood Supply Co. demo tenant
+              Create your ingestion workspace
             </p>
           </div>
         </div>
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Company
+            </label>
+            <input
+              type="text"
+              value={company}
+              onChange={(event) => setCompany(event.target.value)}
+              className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+              placeholder="Acme Labs"
+              required
+            />
+          </div>
           <div>
             <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
               Email
@@ -65,6 +79,7 @@ export default function LoginPage() {
               onChange={(event) => setPassword(event.target.value)}
               className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
               placeholder="••••••••"
+              minLength={8}
               required
             />
           </div>
@@ -78,14 +93,14 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full rounded-full bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-500"
           >
-            {loading ? "Signing in..." : "Sign in"}
+            {loading ? "Creating account..." : "Create account"}
           </button>
         </form>
 
         <div className="mt-6 text-center text-xs text-slate-500">
-          New here?{" "}
-          <Link href="/signup" className="font-semibold text-slate-700">
-            Create an account
+          Already have an account?{" "}
+          <Link href="/login" className="font-semibold text-slate-700">
+            Log in
           </Link>
         </div>
       </div>

@@ -1,170 +1,172 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
-import AppShell from "@/components/AppShell";
-import StatusBadge from "@/components/StatusBadge";
-import { listJobs, JobSummary } from "@/lib/api";
-import { mockJobs } from "@/lib/mock";
 
-export default function Home() {
-  const [jobs, setJobs] = useState<JobSummary[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [usingMock, setUsingMock] = useState(false);
-
-  useEffect(() => {
-    const loadJobs = async () => {
-      try {
-        const response = await listJobs();
-        setJobs(response.jobs ?? []);
-        setUsingMock(false);
-      } catch {
-        setJobs([]);
-        setUsingMock(true);
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadJobs();
-  }, []);
-
-  const displayJobs =
-    jobs.length > 0 ? jobs : usingMock ? mockJobs : jobs;
+export default function LandingPage() {
   return (
-    <AppShell>
-      <section className="flex flex-col gap-6">
-        <div className="flex flex-col gap-4 rounded-2xl bg-white p-8 shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-4">
+    <div className="min-h-screen bg-slate-950 text-white">
+      <header className="border-b border-white/10">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-sm font-semibold text-slate-900">
+              AA
+            </div>
             <div>
-              <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-                AnyApi MVP
-              </p>
-              <h1 className="text-3xl font-semibold text-slate-900">
-                Connect data sources and map any schema to any schema.
-              </h1>
-              <p className="mt-3 max-w-2xl text-base text-slate-600">
-                Upload files or connect APIs, let the system analyze your data,
-                then define the target schema mapping and track ingestion jobs.
+              <p className="text-sm font-semibold">AnyApi</p>
+              <p className="text-xs text-white/70">
+                Agentic ingestion for any schema
               </p>
             </div>
+          </div>
+          <div className="flex items-center gap-3 text-sm">
             <Link
-              href="/jobs/new"
-              className="inline-flex items-center justify-center rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+              href="/login"
+              className="rounded-full border border-white/20 px-4 py-2 font-semibold text-white/80 hover:border-white/50 hover:text-white"
             >
-              Create new ingestion
+              Log in
+            </Link>
+            <Link
+              href="/signup"
+              className="rounded-full bg-white px-4 py-2 font-semibold text-slate-900 hover:bg-slate-100"
+            >
+              Sign up
             </Link>
           </div>
         </div>
+      </header>
 
-        <div className="grid gap-6 md:grid-cols-[2fr_1fr]">
-          <div className="rounded-2xl bg-white p-6 shadow-sm">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-slate-900">
-                Existing ingestion jobs
-              </h2>
-              <span className="text-sm text-slate-500">
-              {displayJobs.length} total
-              </span>
-            </div>
-            <div className="mt-6 divide-y divide-slate-200">
-              {loading && (
-                <div className="py-6 text-sm text-slate-500">
-                  Loading jobs from backend...
-                </div>
-              )}
-              {displayJobs.map((job) => (
-                <div
-                  key={job.id}
-                  className="flex flex-col gap-4 py-5 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900">
-                      {job.name}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      {job.sourceType.toUpperCase()} • {job.createdAt} •{" "}
-                      {(() => {
-                        const value = (job as unknown as { records?: unknown })
-                          .records;
-                        return typeof value === "number"
-                          ? value.toLocaleString()
-                          : "—";
-                      })()}{" "}
-                      records
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <StatusBadge status={job.status} />
-                    <Link
-                      href={`/jobs/${job.id}`}
-                      className="text-sm font-semibold text-slate-900 hover:text-slate-600"
-                    >
-                      View job →
-                    </Link>
-                  </div>
-                </div>
-              ))}
-            </div>
-            {usingMock && (
-              <p className="mt-4 text-xs text-slate-500">
-                Backend not reachable, showing sample jobs.
-              </p>
-            )}
-          </div>
-
+      <main className="mx-auto flex max-w-6xl flex-col gap-16 px-6 py-16">
+        <section className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="flex flex-col gap-6">
-            <div className="flex flex-col gap-4 rounded-2xl border border-dashed border-slate-300 bg-slate-100 p-6">
-              <h3 className="text-lg font-semibold text-slate-900">
-                How it works
-              </h3>
-              <ol className="space-y-3 text-sm text-slate-600">
-                <li>1. Connect a file, API, or cloud bucket.</li>
-                <li>2. We profile fields and flag issues.</li>
-                <li>3. Define the target schema mapping.</li>
-                <li>4. Run the ingestion and monitor results.</li>
-              </ol>
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-white/60">
+              Any-to-any data mapping
+            </p>
+            <h1 className="text-4xl font-semibold leading-tight md:text-5xl">
+              Turn messy data into usable schemas in hours, not weeks.
+            </h1>
+            <p className="text-lg text-white/70">
+              AnyApi is an agentic ingestion engine that learns how to map
+              partner data once and reuses it forever. Upload a schema, connect
+              sources, and get clean data for products, analytics, and AI.
+            </p>
+            <div className="flex flex-wrap items-center gap-4">
               <Link
-                href="/jobs/new"
-                className="mt-auto inline-flex items-center justify-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50"
+                href="/signup"
+                className="rounded-full bg-white px-6 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-100"
               >
-                Add data source
+                Get started free
+              </Link>
+              <Link
+                href="#how"
+                className="text-sm font-semibold text-white/80 hover:text-white"
+              >
+                See how it works →
               </Link>
             </div>
-
-            <div className="rounded-2xl bg-white p-6 shadow-sm">
-              <h3 className="text-lg font-semibold text-slate-900">
-                Company profile
-              </h3>
-              <div className="mt-4 space-y-3 text-sm text-slate-600">
-                <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
-                  <span>Company</span>
-                  <span className="font-semibold text-slate-900">
-                    Redwood Supply Co.
-                  </span>
-                </div>
-                <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
-                  <span>Industry</span>
-                  <span className="font-semibold text-slate-900">
-                    Retail & Logistics
-                  </span>
-                </div>
-                <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
-                  <span>Primary region</span>
-                  <span className="font-semibold text-slate-900">North America</span>
-                </div>
-                <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
-                  <span>Data sources</span>
-                  <span className="font-semibold text-slate-900">12 connected</span>
-                </div>
-              </div>
-              <p className="mt-4 text-xs text-slate-500">
-                Demo tenant showing centralized ingestion for ERP, CRM, and
-                fulfillment feeds.
-              </p>
+            <div className="flex flex-wrap gap-4 text-xs text-white/60">
+              <span>Schema-agnostic</span>
+              <span>Reusable mappings</span>
+              <span>API-first delivery</span>
             </div>
           </div>
-        </div>
-      </section>
-    </AppShell>
+
+          <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
+            <h2 className="text-sm font-semibold uppercase text-white/70">
+              What teams use it for
+            </h2>
+            <div className="mt-6 space-y-4 text-sm text-white/75">
+              <div>
+                <p className="font-semibold text-white">Marketplaces</p>
+                <p>Normalize supplier feeds from CSV, API, or PDFs.</p>
+              </div>
+              <div>
+                <p className="font-semibold text-white">Data/Analytics</p>
+                <p>Unify partner exports into a single warehouse schema.</p>
+              </div>
+              <div>
+                <p className="font-semibold text-white">AI/ML</p>
+                <p>Prepare heterogeneous training data fast.</p>
+              </div>
+              <div>
+                <p className="font-semibold text-white">Integrations</p>
+                <p>Ship customer onboarding without building custom ETL.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section
+          id="how"
+          className="grid gap-8 rounded-3xl border border-white/10 bg-white/5 p-10 md:grid-cols-3"
+        >
+          {[
+            {
+              title: "Deploy schema",
+              body: "Paste your target schema or sample data. AnyApi infers the canonical shape.",
+            },
+            {
+              title: "Connect data",
+              body: "Send any payload to the generated endpoint with your API key.",
+            },
+            {
+              title: "Get clean output",
+              body: "Mapped results are validated, versioned, and ready for reuse.",
+            },
+          ].map((item) => (
+            <div key={item.title} className="space-y-3">
+              <p className="text-sm font-semibold uppercase text-white/60">
+                {item.title}
+              </p>
+              <p className="text-lg font-semibold text-white">{item.body}</p>
+            </div>
+          ))}
+        </section>
+
+        <section className="grid gap-10 md:grid-cols-[1.1fr_0.9fr]">
+          <div className="space-y-4">
+            <h2 className="text-3xl font-semibold">
+              Stop rebuilding pipelines for every partner.
+            </h2>
+            <p className="text-white/70">
+              AnyApi removes the manual mapping loop. Teams define mappings once
+              and reuse them across ingestion, analytics, and AI workflows.
+            </p>
+          </div>
+          <div className="rounded-3xl border border-white/10 bg-white/5 p-6 text-sm text-white/70">
+            <p className="font-semibold text-white">What you get</p>
+            <ul className="mt-4 space-y-2">
+              <li>Reusable schema functions</li>
+              <li>Agentic mapping with validation</li>
+              <li>API-first ingestion with keys</li>
+              <li>Auditability and mapping reuse</li>
+            </ul>
+          </div>
+        </section>
+
+        <section className="rounded-3xl border border-white/10 bg-white/5 p-10 text-center">
+          <h2 className="text-3xl font-semibold">
+            Ready to turn messy data into clean APIs?
+          </h2>
+          <p className="mt-4 text-white/70">
+            Start free, deploy your first schema in minutes, and share your API
+            endpoint with partners.
+          </p>
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-4">
+            <Link
+              href="/signup"
+              className="rounded-full bg-white px-6 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-100"
+            >
+              Create an account
+            </Link>
+            <Link
+              href="/login"
+              className="rounded-full border border-white/20 px-6 py-3 text-sm font-semibold text-white/80 hover:border-white/50 hover:text-white"
+            >
+              Log in
+            </Link>
+          </div>
+        </section>
+      </main>
+    </div>
   );
 }

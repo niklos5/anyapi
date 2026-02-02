@@ -77,7 +77,7 @@ export default function JobDetailPage({ params }: JobDetailPageProps) {
           <div className="flex items-center gap-3">
             <StatusBadge status={job.status} />
             <Link
-              href="/"
+              href="/app"
               className="text-sm font-semibold text-slate-600 hover:text-slate-900"
             >
               Back to dashboard
@@ -192,7 +192,7 @@ export default function JobDetailPage({ params }: JobDetailPageProps) {
               </div>
             )}
             <Link
-              href={`/jobs/${job.id}/results`}
+              href={`/app/jobs/${job.id}/results`}
               className="inline-flex items-center justify-center rounded-full bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800"
             >
               View results

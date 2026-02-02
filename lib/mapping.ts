@@ -7,9 +7,21 @@ export type MappingEntry = {
   match?: Record<string, unknown>;
 };
 
+export type RoasterMappingSpec = {
+  version?: string;
+  defaults?: Record<string, unknown>;
+  broadcast?: Record<string, unknown>;
+  mappings: {
+    items: {
+      path: string;
+      map: Record<string, unknown>;
+    };
+  };
+};
+
 export type MappingSpec = {
   targetSchema?: unknown;
-  mappings: MappingEntry[];
+  mappings: MappingEntry[] | RoasterMappingSpec["mappings"];
   defaults?: Record<string, unknown>;
 };
 
@@ -19,10 +31,17 @@ export const parseMappingSpec = (value: string): MappingSpec | null => {
     if (!parsed || typeof parsed !== "object") {
       return null;
     }
-    if (!Array.isArray(parsed.mappings)) {
-      return null;
+    if (Array.isArray(parsed.mappings)) {
+      return parsed as MappingSpec;
     }
-    return parsed as MappingSpec;
+    if (
+      parsed.mappings &&
+      typeof parsed.mappings === "object" &&
+      typeof parsed.mappings.items === "object"
+    ) {
+      return parsed as MappingSpec;
+    }
+    return null;
   } catch {
     return null;
   }

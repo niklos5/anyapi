@@ -52,7 +52,7 @@ export default function JobResultsPage({ params }: JobResultsPageProps) {
             </p>
           </div>
           <Link
-            href={`/jobs/${params.jobId}`}
+            href={`/app/jobs/${params.jobId}`}
             className="text-sm font-semibold text-slate-600 hover:text-slate-900"
           >
             ← Back to job

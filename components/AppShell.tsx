@@ -3,8 +3,9 @@ import AuthGate from "@/components/AuthGate";
 import AuthStatus from "@/components/AuthStatus";
 
 const navItems = [
-  { label: "Dashboard", href: "/" },
-  { label: "New Ingestion", href: "/jobs/new" },
+  { label: "Dashboard", href: "/app" },
+  { label: "Schemas", href: "/app/schemas" },
+  { label: "New Ingestion", href: "/app/jobs/new" },
 ];
 
 type AppShellProps = {

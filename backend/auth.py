@@ -43,7 +43,6 @@ def _verify_access_token(token: str, secret: str) -> Optional[Dict[str, Any]]:
 
 
 def require_auth(authorization: str = Header(default="")) -> Dict[str, Any]:
-    return {"partner_id": os.environ.get("DEFAULT_PARTNER_ID", "demo")}
     if not authorization.lower().startswith("bearer "):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing bearer token")
     token = authorization.split(" ", 1)[1].strip()
