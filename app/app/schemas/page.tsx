@@ -77,6 +77,12 @@ export default function SchemasPage() {
                       {schema.defaultMapping ? "Configured" : "Not set"}
                     </span>
                     <Link
+                      href={`/app/schemas/${schema.id}`}
+                      className="text-sm font-semibold text-slate-700 hover:text-slate-900"
+                    >
+                      View
+                    </Link>
+                    <Link
                       href={`/app/schemas/new?clone=${schema.id}`}
                       className="text-sm font-semibold text-slate-700 hover:text-slate-900"
                     >

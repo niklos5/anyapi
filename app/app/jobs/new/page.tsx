@@ -2,13 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import { analyzeSource, ingestSchema, listSchemas, SchemaSummary } from "@/lib/api";
 import { parseMappingSpec } from "@/lib/mapping";
 
 export default function NewIngestionPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [sourceType, setSourceType] = useState("file");
   const [mappingText, setMappingText] = useState("");
   const [schemas, setSchemas] = useState<SchemaSummary[]>([]);
@@ -43,6 +44,17 @@ export default function NewIngestionPage() {
     };
     loadSchemas();
   }, []);
+
+  useEffect(() => {
+    const schemaParam = searchParams.get("schema");
+    if (!schemaParam || schemas.length === 0) {
+      return;
+    }
+    const exists = schemas.some((schema) => schema.id === schemaParam);
+    if (exists) {
+      setSelectedSchemaId(schemaParam);
+    }
+  }, [schemas, searchParams]);
 
   const selectedSchema = useMemo(
     () => schemas.find((schema) => schema.id === selectedSchemaId) ?? null,

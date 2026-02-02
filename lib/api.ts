@@ -11,6 +11,7 @@ export type JobSummary = {
   sourceType: string;
   status: JobStatus;
   createdAt: string;
+  schemaId?: string;
 };
 
 type RequestOptions = {
