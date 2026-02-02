@@ -65,14 +65,15 @@ const doRequest = async <T>(
 };
 
 export const analyzeSource = async (data: unknown) =>
-  doRequest<{ schema: Record<string, string>; preview: unknown[]; issues: unknown[] }>(
-    "/analyze",
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ data }),
-    }
-  );
+  doRequest<{
+    schema: Record<string, string>;
+    preview: Record<string, unknown>[];
+    issues: { field: string; level: string; message: string }[];
+  }>("/analyze", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ data }),
+  });
 
 export const createJob = async (payload: {
   name: string;
@@ -89,10 +90,12 @@ export const createJob = async (payload: {
 export const listJobs = async (): Promise<{ jobs: JobSummary[] }> =>
   doRequest("/jobs");
 
-export const fetchJob = async (jobId: string) =>
+export const fetchJob = async (jobId: string): Promise<JobSummary> =>
   doRequest(`/jobs/${jobId}`);
 
-export const fetchJobResults = async (jobId: string) =>
+export const fetchJobResults = async (
+  jobId: string
+): Promise<{ jobId: string; result: unknown }> =>
   doRequest(`/jobs/${jobId}/results`);
 
 export type SchemaSummary = {

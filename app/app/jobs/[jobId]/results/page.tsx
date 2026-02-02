@@ -19,12 +19,19 @@ export default function JobResultsPage({ params }: JobResultsPageProps) {
       try {
         const response = await fetchJobResults(params.jobId);
         const result = response.result ?? {};
-        if (Array.isArray(result.items)) {
-          setRows(result.items);
+        if (
+          result &&
+          typeof result === "object" &&
+          "items" in result &&
+          Array.isArray((result as { items?: unknown }).items)
+        ) {
+          setRows((result as { items: Record<string, unknown>[] }).items);
         } else if (Array.isArray(result)) {
           setRows(result);
+        } else if (result && typeof result === "object") {
+          setRows([result as Record<string, unknown>]);
         } else {
-          setRows([result]);
+          setRows([]);
         }
         setUsingMock(false);
       } catch {
