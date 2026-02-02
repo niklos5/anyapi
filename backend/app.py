@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import json
+import os
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
+import boto3
+from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import Depends, FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -74,6 +78,85 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+_BEDROCK_CLIENT: Optional[Any] = None
+
+
+def _get_bedrock_client() -> Any:
+    global _BEDROCK_CLIENT
+    if _BEDROCK_CLIENT is None:
+        region = os.getenv("BEDROCK_REGION") or os.getenv("AWS_REGION") or "us-east-1"
+        _BEDROCK_CLIENT = boto3.client("bedrock-runtime", region_name=region)
+    return _BEDROCK_CLIENT
+
+
+def _bedrock_model_id() -> Optional[str]:
+    return os.getenv("BEDROCK_MODEL_ID")
+
+
+def _build_bedrock_prompt(
+    input_schema: Dict[str, Any], target_schema: Any, items_path: str
+) -> str:
+    return (
+        "You are an expert data mapper. Generate a JSON mapping spec in the roaster format.\n"
+        "Return ONLY valid JSON (no markdown, no extra text).\n\n"
+        "Rules:\n"
+        f"- The output must be a JSON object with keys: version, defaults, broadcast, mappings.\n"
+        f"- mappings.items.path must be the JSONPath array: \"{items_path}\".\n"
+        "- mappings.items.map should map target fields to source paths.\n"
+        "- Use JSONPath strings that start with '$.' for sources.\n"
+        "- If you cannot find a source for a target, set source to null.\n"
+        "- Do not invent fields that are not in the target schema.\n\n"
+        "Input schema (JSONPath -> type):\n"
+        f"{json.dumps(input_schema, indent=2)}\n\n"
+        "Target schema (JSON or JSONPath map):\n"
+        f"{json.dumps(target_schema, indent=2)}\n"
+    )
+
+
+def _invoke_bedrock(prompt: str) -> Optional[str]:
+    model_id = _bedrock_model_id()
+    if not model_id:
+        return None
+    body = {
+        "anthropic_version": "bedrock-2023-05-31",
+        "max_tokens": 2048,
+        "temperature": 0,
+        "messages": [
+            {"role": "user", "content": [{"type": "text", "text": prompt}]}
+        ],
+    }
+    client = _get_bedrock_client()
+    response = client.invoke_model(
+        modelId=model_id,
+        body=json.dumps(body),
+    )
+    payload = json.loads(response["body"].read())
+    content = payload.get("content") or []
+    if content and isinstance(content, list):
+        text = content[0].get("text") if isinstance(content[0], dict) else None
+        return text if isinstance(text, str) else None
+    return None
+
+
+def _generate_mapping_with_bedrock(
+    payload: Any, target_schema: Any
+) -> Optional[Dict[str, Any]]:
+    if not _bedrock_model_id():
+        return None
+    extractor = SchemaStructureExtractor(max_items_per_array=10)
+    input_schema = extractor.extract(payload)
+    items_path = _choose_items_path(payload)
+    prompt = _build_bedrock_prompt(input_schema, target_schema, items_path)
+    try:
+        raw_text = _invoke_bedrock(prompt)
+    except (BotoCoreError, ClientError, ValueError, KeyError) as exc:
+        print(f"Bedrock mapping generation failed: {exc}")
+        return None
+    if not raw_text:
+        return None
+    mapping_spec, _ = repair_mapping_spec(raw_text)
+    return mapping_spec
 
 
 def _normalize_target_path(path: str) -> str:
@@ -210,14 +293,16 @@ def _prepare_roaster_mapping(
     payload: Any,
     target_schema: Any,
 ) -> Dict[str, Any]:
-    if not mapping_spec:
-        return _auto_mapping_spec(payload, target_schema)
-    mappings_value = mapping_spec.get("mappings")
+    mappings_value = mapping_spec.get("mappings") if mapping_spec else None
+    if not mapping_spec or not mappings_value:
+        generated = _generate_mapping_with_bedrock(payload, target_schema)
+        return generated if generated else _auto_mapping_spec(payload, target_schema)
     if isinstance(mappings_value, list):
         return _build_roaster_mapping_from_list(mapping_spec, payload)
     if isinstance(mappings_value, dict):
         return mapping_spec
-    return _auto_mapping_spec(payload, target_schema)
+    generated = _generate_mapping_with_bedrock(payload, target_schema)
+    return generated if generated else _auto_mapping_spec(payload, target_schema)
 
 
 def _extract_target_paths(target_schema: Any) -> Dict[str, Any]:

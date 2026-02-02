@@ -15,6 +15,8 @@ export default function NewIngestionPage() {
   const [selectedSchemaId, setSelectedSchemaId] = useState<string>("");
   const [loadingSchemas, setLoadingSchemas] = useState(true);
   const [sourcePayloadText, setSourcePayloadText] = useState("");
+  const [fileName, setFileName] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const [analysis, setAnalysis] = useState<{
     schema: Record<string, string>;
     preview: Record<string, unknown>[];
@@ -63,6 +65,44 @@ export default function NewIngestionPage() {
     } catch {
       setError("Source payload must be valid JSON.");
       return null;
+    }
+  };
+
+  const handleFile = async (file: File) => {
+    setError(null);
+    setAnalysis(null);
+    setFileName(file.name);
+    const text = await file.text();
+    const isJson =
+      file.type === "application/json" ||
+      file.name.toLowerCase().endsWith(".json");
+    if (!isJson) {
+      setError("Only JSON files are supported right now.");
+      return;
+    }
+    try {
+      const parsed = JSON.parse(text);
+      setSourcePayloadText(JSON.stringify(parsed, null, 2));
+    } catch {
+      setError("Uploaded JSON file is invalid.");
+    }
+  };
+
+  const handleFileChange = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      await handleFile(file);
+    }
+  };
+
+  const handleDrop = async (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setIsDragging(false);
+    const file = event.dataTransfer.files?.[0];
+    if (file) {
+      await handleFile(file);
     }
   };
 
@@ -224,11 +264,37 @@ export default function NewIngestionPage() {
                   <p className="font-semibold text-slate-900">
                     Upload a CSV or JSON file
                   </p>
-                  <div className="flex items-center justify-between rounded-lg border border-dashed border-slate-300 bg-white px-4 py-3">
-                    <span>Drop file here or browse</span>
-                    <button className="rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white">
-                      Upload
-                    </button>
+                  <div
+                    className={`flex flex-col gap-2 rounded-lg border border-dashed px-4 py-3 transition ${
+                      isDragging
+                        ? "border-slate-900 bg-slate-50"
+                        : "border-slate-300 bg-white"
+                    }`}
+                    onDragEnter={(event) => {
+                      event.preventDefault();
+                      setIsDragging(true);
+                    }}
+                    onDragOver={(event) => event.preventDefault()}
+                    onDragLeave={() => setIsDragging(false)}
+                    onDrop={handleDrop}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span>
+                        {fileName ? `Selected: ${fileName}` : "Drop file here or browse"}
+                      </span>
+                      <label className="cursor-pointer rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white">
+                        Upload
+                        <input
+                          type="file"
+                          accept=".json,application/json"
+                          className="hidden"
+                          onChange={handleFileChange}
+                        />
+                      </label>
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      JSON files only for now. Paste JSON below if preferred.
+                    </p>
                   </div>
                 </>
               )}

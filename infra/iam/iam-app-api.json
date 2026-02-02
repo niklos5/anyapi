@@ -40,6 +40,15 @@
         "s3:DeleteObject"
       ],
       "Resource": "arn:aws:s3:::YOUR_ANYAPI_BUCKET/*"
+    },
+    {
+      "Sid": "BedrockInvoke",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:InvokeModel",
+        "bedrock:InvokeModelWithResponseStream"
+      ],
+      "Resource": "*"
     }
   ]
 }
