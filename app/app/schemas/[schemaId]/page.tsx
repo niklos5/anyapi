@@ -85,6 +85,12 @@ export default function SchemaDetailPage({ params }: SchemaDetailPageProps) {
 
   useEffect(() => {
     const loadSchema = async () => {
+      if (!params.schemaId) {
+        setSchema(null);
+        setError("Missing mapping ID.");
+        setLoading(false);
+        return;
+      }
       try {
         const response = await fetchSchema(params.schemaId);
         const record = response.schema;
