@@ -57,7 +57,15 @@ export default function SchemasPage() {
           )}
           {!loading && schemas.length > 0 && (
             <div className="divide-y divide-slate-200">
-              {schemas.filter((schema) => schema.id).map((schema) => (
+              {schemas
+                .filter(
+                  (schema) =>
+                    schema.id &&
+                    schema.id !== "undefined" &&
+                    schema.id !== "null" &&
+                    schema.id !== "None"
+                )
+                .map((schema) => (
                 <div
                   key={schema.id}
                   className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between"

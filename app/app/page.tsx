@@ -71,7 +71,15 @@ export default function Home() {
                 No mappings yet.
               </div>
             )}
-            {schemas.filter((schema) => schema.id).map((schema) => {
+            {schemas
+              .filter(
+                (schema) =>
+                  schema.id &&
+                  schema.id !== "undefined" &&
+                  schema.id !== "null" &&
+                  schema.id !== "None"
+              )
+              .map((schema) => {
               return (
                 <div
                   key={schema.id}

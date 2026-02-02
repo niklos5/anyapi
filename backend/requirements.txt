@@ -1,5 +1,3 @@
-fastapi
-uvicorn
-python-multipart
-mangum
 boto3
+stripe
+psycopg2-binary

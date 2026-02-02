@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import {
   analyzeSource,
@@ -17,10 +18,6 @@ import {
   TransformerOutputConfig,
   TransformerSettings,
 } from "@/lib/types";
-
-type SchemaDetailPageProps = {
-  params: { schemaId: string };
-};
 
 const defaultInputConfig: TransformerInputConfig = {
   sourceType: "file",
@@ -56,7 +53,10 @@ const normalizeRows = (result: unknown): Record<string, unknown>[] => {
   return [];
 };
 
-export default function SchemaDetailPage({ params }: SchemaDetailPageProps) {
+export default function SchemaDetailPage() {
+  const params = useParams();
+  const schemaId =
+    typeof params?.schemaId === "string" ? params.schemaId : undefined;
   const [schema, setSchema] = useState<SchemaSummary | null>(null);
   const [name, setName] = useState("");
   const [schemaText, setSchemaText] = useState("{}");
@@ -85,14 +85,19 @@ export default function SchemaDetailPage({ params }: SchemaDetailPageProps) {
 
   useEffect(() => {
     const loadSchema = async () => {
-      if (!params.schemaId) {
+      if (
+        !schemaId ||
+        schemaId === "undefined" ||
+        schemaId === "null" ||
+        schemaId === "None"
+      ) {
         setSchema(null);
         setError("Missing mapping ID.");
         setLoading(false);
         return;
       }
       try {
-        const response = await fetchSchema(params.schemaId);
+        const response = await fetchSchema(schemaId);
         const record = response.schema;
         setSchema(record);
         setName(record.name);
@@ -113,7 +118,7 @@ export default function SchemaDetailPage({ params }: SchemaDetailPageProps) {
       }
     };
     loadSchema();
-  }, [params.schemaId]);
+  }, [schemaId]);
 
   const metrics = useMemo(() => {
     if (!analysis) {
@@ -159,6 +164,11 @@ export default function SchemaDetailPage({ params }: SchemaDetailPageProps) {
     setSavingSchema(true);
     setError(null);
     setStatusMessage(null);
+    if (!schemaId) {
+      setError("Missing mapping ID.");
+      setSavingSchema(false);
+      return;
+    }
     const schemaDefinition = parseJson(schemaText);
     if (!schemaDefinition) {
       setError("Target schema must be valid JSON.");
@@ -173,7 +183,7 @@ export default function SchemaDetailPage({ params }: SchemaDetailPageProps) {
       return;
     }
     try {
-      const response = await updateSchema(params.schemaId, {
+      const response = await updateSchema(schemaId, {
         name,
         schemaDefinition,
         defaultMapping: parsedMapping ?? undefined,
@@ -191,8 +201,13 @@ export default function SchemaDetailPage({ params }: SchemaDetailPageProps) {
     setSavingConfig(true);
     setError(null);
     setStatusMessage(null);
+    if (!schemaId) {
+      setError("Missing mapping ID.");
+      setSavingConfig(false);
+      return;
+    }
     try {
-      const response = await updateSchema(params.schemaId, {
+      const response = await updateSchema(schemaId, {
         metadata: {
           input: inputConfig,
           output: outputConfig,
@@ -212,6 +227,11 @@ export default function SchemaDetailPage({ params }: SchemaDetailPageProps) {
     setRunning(true);
     setError(null);
     setStatusMessage(null);
+    if (!schemaId) {
+      setError("Missing mapping ID.");
+      setRunning(false);
+      return;
+    }
     const payload = parseJson(sourcePayloadText.trim());
     if (!payload) {
       setError("Paste a valid JSON payload before running.");
@@ -226,7 +246,7 @@ export default function SchemaDetailPage({ params }: SchemaDetailPageProps) {
       return;
     }
     try {
-      const response = await ingestSchema(params.schemaId, {
+      const response = await ingestSchema(schemaId, {
         name: `Run ${name || "mapping"}`,
         sourceType: inputConfig.sourceType,
         data: payload,

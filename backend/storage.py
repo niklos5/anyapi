@@ -1,56 +1,156 @@
 from __future__ import annotations
 
+import hashlib
 import json
+import logging
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from uuid import uuid4
 
 import boto3
 from botocore.exceptions import ClientError
 
+try:
+    import psycopg2  # type: ignore
+    from psycopg2.extras import RealDictCursor, Json  # type: ignore
+except ImportError:  # pragma: no cover
+    psycopg2 = None
+    RealDictCursor = None
+    Json = None
+
+try:
+    import pg8000  # type: ignore
+except ImportError:  # pragma: no cover
+    pg8000 = None
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 S3_BUCKET = os.environ.get("ANYAPI_S3_BUCKET", "")
+S3_KMS_KEY_ID = os.environ.get("S3_KMS_KEY_ID")
+S3_SSE = os.environ.get("S3_SSE", "AES256")
+
+_DB_CONN = None
+_S3_CLIENT: Optional[Any] = None
 
 
 @dataclass
 class SchemaRecord:
     id: str
     name: str
-    partner_id: str
+    partner_internal_id: int
     schema_definition: Any
     default_mapping: Optional[Dict[str, Any]]
     metadata: Optional[Dict[str, Any]]
     created_at: str
     updated_at: str
-    version: int = 1
-    api_key: Optional[str] = None
+    version: int
+    api_key: Optional[str]
 
 
 @dataclass
 class JobRecord:
     id: str
     name: str
+    partner_internal_id: int
+    mapping_id: str
     source_type: str
-    partner_id: str
     status: str
+    input_s3_key: Optional[str]
+    input_checksum: Optional[str]
+    result_s3_key: Optional[str]
+    result_checksum: Optional[str]
+    issues: List[Dict[str, Any]]
+    metrics: Optional[Dict[str, Any]]
     created_at: str
-    data: Any
-    mapping: Dict[str, Any]
-    target_schema: Any
-    schema_id: Optional[str] = None
-    result: Optional[Dict[str, Any]] = None
-    issues: List[Dict[str, Any]] = field(default_factory=list)
+    updated_at: str
 
 
-_JOBS: Dict[str, JobRecord] = {}
-_SCHEMAS: Dict[str, SchemaRecord] = {}
-_S3_CLIENT: Optional[Any] = None
+# ---------- DB helpers ----------
 
 
-def _utc_now() -> str:
-    return datetime.utcnow().strftime("%Y-%m-%d %H:%M")
+def _db_connection():
+    global _DB_CONN
+    if _DB_CONN is not None:
+        try:
+            if psycopg2 is not None and _DB_CONN.closed == 0:
+                return _DB_CONN
+        except Exception:
+            _DB_CONN = None
+
+    database_url = os.environ.get("DATABASE_URL")
+    if database_url:
+        if psycopg2 is not None:
+            _DB_CONN = psycopg2.connect(database_url)
+        elif pg8000 is not None:
+            _DB_CONN = pg8000.connect(database_url)
+        else:
+            raise RuntimeError("Missing database client (psycopg2 or pg8000).")
+    else:
+        host = os.environ.get("DB_HOST")
+        user = os.environ.get("DB_USER")
+        password = os.environ.get("DB_PASSWORD")
+        db_name = os.environ.get("DB_NAME")
+        port = int(os.environ.get("DB_PORT", "5432"))
+        if not all([host, user, password, db_name]):
+            raise RuntimeError("Missing DB_* environment variables.")
+        if psycopg2 is not None:
+            _DB_CONN = psycopg2.connect(
+                host=host, user=user, password=password, port=port, dbname=db_name
+            )
+        elif pg8000 is not None:
+            _DB_CONN = pg8000.connect(
+                host=host, user=user, password=password, port=port, database=db_name
+            )
+        else:
+            raise RuntimeError("Missing database client (psycopg2 or pg8000).")
+
+    try:
+        _DB_CONN.autocommit = True
+    except Exception:
+        pass
+    return _DB_CONN
+
+
+def _json_param(value: Any):
+    if Json is not None:
+        return Json(value)
+    return json.dumps(value)
+
+
+def _fetch_one(sql: str, params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    conn = _db_connection()
+    if psycopg2 is not None and RealDictCursor is not None:
+        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+            cursor.execute(sql, params)
+            row = cursor.fetchone()
+            return dict(row) if row else None
+    with conn.cursor() as cursor:
+        cursor.execute(sql, params)
+        row = cursor.fetchone()
+        if not row:
+            return None
+        columns = [desc[0] for desc in cursor.description]
+        return {col: value for col, value in zip(columns, row)}
+
+
+def _fetch_all(sql: str, params: Dict[str, Any]) -> List[Dict[str, Any]]:
+    conn = _db_connection()
+    if psycopg2 is not None and RealDictCursor is not None:
+        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+            cursor.execute(sql, params)
+            rows = cursor.fetchall() or []
+            return [dict(row) for row in rows]
+    with conn.cursor() as cursor:
+        cursor.execute(sql, params)
+        rows = cursor.fetchall() or []
+        columns = [desc[0] for desc in cursor.description]
+        return [{col: value for col, value in zip(columns, row)} for row in rows]
+
+
+# ---------- S3 helpers ----------
 
 
 def _s3_enabled() -> bool:
@@ -64,307 +164,405 @@ def _s3_client() -> Any:
     return _S3_CLIENT
 
 
-def _schema_key(partner_id: str, schema_id: str) -> str:
-    return f"schemas/{partner_id}/{schema_id}.json"
+def _checksum(payload: bytes) -> str:
+    return hashlib.sha256(payload).hexdigest()
 
 
-def _schema_index_key(schema_id: str) -> str:
-    return f"schemas_by_id/{schema_id}.json"
-
-
-def _schema_api_key_key(api_key: str) -> str:
-    return f"schema_api_keys/{api_key}.json"
-
-
-def _job_key(partner_id: str, job_id: str) -> str:
-    return f"jobs/{partner_id}/{job_id}.json"
-
-
-def _put_json(key: str, payload: Dict[str, Any]) -> None:
+def _s3_put_json(prefix: str, payload: Any) -> Tuple[str, str]:
     if not _s3_enabled():
-        return
-    _s3_client().put_object(
-        Bucket=S3_BUCKET,
-        Key=key,
-        Body=json.dumps(payload).encode("utf-8"),
-        ContentType="application/json",
-    )
+        raise RuntimeError("ANYAPI_S3_BUCKET not configured")
+    key = f"{prefix}/{uuid4().hex}.json"
+    raw = json.dumps(payload).encode("utf-8")
+    checksum = _checksum(raw)
+    params: Dict[str, Any] = {
+        "Bucket": S3_BUCKET,
+        "Key": key,
+        "Body": raw,
+        "ContentType": "application/json",
+    }
+    if S3_KMS_KEY_ID:
+        params["ServerSideEncryption"] = "aws:kms"
+        params["SSEKMSKeyId"] = S3_KMS_KEY_ID
+    elif S3_SSE:
+        params["ServerSideEncryption"] = S3_SSE
+    _s3_client().put_object(**params)
+    return key, checksum
 
 
-def _get_json(key: str) -> Optional[Dict[str, Any]]:
+def _s3_get_json(key: str) -> Any:
     if not _s3_enabled():
-        return None
-    try:
-        response = _s3_client().get_object(Bucket=S3_BUCKET, Key=key)
-    except ClientError as exc:
-        if exc.response.get("Error", {}).get("Code") in {"NoSuchKey", "404"}:
-            return None
-        raise
+        raise RuntimeError("ANYAPI_S3_BUCKET not configured")
+    response = _s3_client().get_object(Bucket=S3_BUCKET, Key=key)
     raw = response["Body"].read().decode("utf-8")
     return json.loads(raw)
 
 
-def _delete_key(key: str) -> None:
-    if not _s3_enabled():
-        return
-    _s3_client().delete_object(Bucket=S3_BUCKET, Key=key)
+# ---------- Row mapping ----------
 
 
-def _list_keys(prefix: str) -> List[str]:
-    if not _s3_enabled():
-        return []
-    client = _s3_client()
-    keys: List[str] = []
-    continuation: Optional[str] = None
-    while True:
-        params = {"Bucket": S3_BUCKET, "Prefix": prefix}
-        if continuation:
-            params["ContinuationToken"] = continuation
-        response = client.list_objects_v2(**params)
-        for item in response.get("Contents", []):
-            key = item.get("Key")
-            if key:
-                keys.append(key)
-        if not response.get("IsTruncated"):
-            break
-        continuation = response.get("NextContinuationToken")
-    return keys
-
-
-def _schema_to_payload(record: SchemaRecord) -> Dict[str, Any]:
-    return {
-        "id": record.id,
-        "name": record.name,
-        "partner_id": record.partner_id,
-        "schema_definition": record.schema_definition,
-        "default_mapping": record.default_mapping,
-        "metadata": record.metadata,
-        "created_at": record.created_at,
-        "updated_at": record.updated_at,
-        "version": record.version,
-        "api_key": record.api_key,
-    }
-
-
-def _payload_to_schema(payload: Dict[str, Any]) -> SchemaRecord:
+def _schema_from_row(row: Dict[str, Any]) -> SchemaRecord:
     return SchemaRecord(
-        id=str(payload["id"]),
-        name=str(payload["name"]),
-        partner_id=str(payload["partner_id"]),
-        schema_definition=payload.get("schema_definition"),
-        default_mapping=payload.get("default_mapping"),
-        metadata=payload.get("metadata"),
-        created_at=str(payload.get("created_at", _utc_now())),
-        updated_at=str(payload.get("updated_at", _utc_now())),
-        version=int(payload.get("version", 1)),
-        api_key=payload.get("api_key"),
+        id=str(row["id"]),
+        name=str(row["name"]),
+        partner_internal_id=int(row["partner_internal_id"]),
+        schema_definition=row.get("schema_definition"),
+        default_mapping=row.get("default_mapping"),
+        metadata=row.get("metadata"),
+        created_at=str(row["created_at"]),
+        updated_at=str(row["updated_at"]),
+        version=int(row["version"]),
+        api_key=row.get("api_key"),
     )
 
 
-def _job_to_payload(record: JobRecord) -> Dict[str, Any]:
-    return {
-        "id": record.id,
-        "name": record.name,
-        "source_type": record.source_type,
-        "partner_id": record.partner_id,
-        "status": record.status,
-        "created_at": record.created_at,
-        "data": record.data,
-        "mapping": record.mapping,
-        "target_schema": record.target_schema,
-        "schema_id": record.schema_id,
-        "result": record.result,
-        "issues": record.issues,
-    }
-
-
-def _payload_to_job(payload: Dict[str, Any]) -> JobRecord:
+def _job_from_row(row: Dict[str, Any]) -> JobRecord:
     return JobRecord(
-        id=str(payload["id"]),
-        name=str(payload["name"]),
-        source_type=str(payload["source_type"]),
-        partner_id=str(payload["partner_id"]),
-        status=str(payload["status"]),
-        created_at=str(payload.get("created_at", _utc_now())),
-        data=payload.get("data"),
-        mapping=payload.get("mapping") or {},
-        target_schema=payload.get("target_schema"),
-        schema_id=payload.get("schema_id"),
-        result=payload.get("result"),
-        issues=payload.get("issues") or [],
+        id=str(row["id"]),
+        name=str(row["name"]),
+        partner_internal_id=int(row["partner_internal_id"]),
+        mapping_id=str(row["mapping_id"]),
+        source_type=str(row["source_type"]),
+        status=str(row["status"]),
+        input_s3_key=row.get("input_s3_key"),
+        input_checksum=row.get("input_checksum"),
+        result_s3_key=row.get("result_s3_key"),
+        result_checksum=row.get("result_checksum"),
+        issues=row.get("issues") or [],
+        metrics=row.get("metrics"),
+        created_at=str(row["created_at"]),
+        updated_at=str(row["updated_at"]),
     )
+
+
+# ---------- Schema CRUD ----------
 
 
 def create_schema(
+    *,
     name: str,
-    partner_id: str,
+    partner_internal_id: int,
     schema_definition: Any,
     default_mapping: Optional[Dict[str, Any]] = None,
     metadata: Optional[Dict[str, Any]] = None,
     api_key: Optional[str] = None,
 ) -> SchemaRecord:
-    schema_id = f"schema_{uuid4().hex[:6]}"
-    now = _utc_now()
-    record = SchemaRecord(
-        id=schema_id,
-        name=name,
-        partner_id=partner_id,
-        schema_definition=schema_definition,
-        default_mapping=default_mapping,
-        metadata=metadata,
-        created_at=now,
-        updated_at=now,
-        api_key=api_key,
-    )
-    _SCHEMAS[schema_id] = record
-    _put_json(_schema_key(partner_id, schema_id), _schema_to_payload(record))
-    _put_json(
-        _schema_index_key(schema_id),
-        {"partner_id": partner_id, "schema_id": schema_id, "api_key": api_key},
-    )
-    if api_key:
-        _put_json(
-            _schema_api_key_key(api_key),
-            {"partner_id": partner_id, "schema_id": schema_id, "api_key": api_key},
+    api_key = api_key or f"api_{uuid4().hex}"
+    row = _fetch_one(
+        """
+        INSERT INTO anyapi_app.mappings (
+            partner_internal_id,
+            name,
+            schema_definition,
+            default_mapping,
+            metadata,
+            api_key
+        ) VALUES (
+            %(partner_internal_id)s,
+            %(name)s,
+            %(schema_definition)s,
+            %(default_mapping)s,
+            %(metadata)s,
+            %(api_key)s
         )
-    return record
+        RETURNING *
+        """,
+        {
+            "partner_internal_id": partner_internal_id,
+            "name": name,
+            "schema_definition": _json_param(schema_definition),
+            "default_mapping": _json_param(default_mapping) if default_mapping else None,
+            "metadata": _json_param(metadata) if metadata else None,
+            "api_key": api_key,
+        },
+    )
+    if not row:
+        raise RuntimeError("Failed to create mapping")
+    return _schema_from_row(row)
 
 
-def update_schema(schema_id: str, partner_id: str, **kwargs: Any) -> Optional[SchemaRecord]:
-    record = get_schema(schema_id, partner_id)
-    if not record:
-        return None
-    for key, value in kwargs.items():
-        setattr(record, key, value)
-    record.updated_at = _utc_now()
-    record.version += 1
-    _SCHEMAS[schema_id] = record
-    _put_json(_schema_key(partner_id, schema_id), _schema_to_payload(record))
-    return record
+def update_schema(
+    *,
+    schema_id: str,
+    partner_internal_id: int,
+    name: Optional[str] = None,
+    schema_definition: Optional[Any] = None,
+    default_mapping: Optional[Dict[str, Any]] = None,
+    metadata: Optional[Dict[str, Any]] = None,
+) -> Optional[SchemaRecord]:
+    row = _fetch_one(
+        """
+        UPDATE anyapi_app.mappings
+        SET
+            name = COALESCE(%(name)s, name),
+            schema_definition = COALESCE(%(schema_definition)s, schema_definition),
+            default_mapping = COALESCE(%(default_mapping)s, default_mapping),
+            metadata = COALESCE(%(metadata)s, metadata),
+            updated_at = NOW(),
+            version = version + 1
+        WHERE id = %(schema_id)s AND partner_internal_id = %(partner_internal_id)s
+        RETURNING *
+        """,
+        {
+            "schema_id": schema_id,
+            "partner_internal_id": partner_internal_id,
+            "name": name,
+            "schema_definition": _json_param(schema_definition) if schema_definition is not None else None,
+            "default_mapping": _json_param(default_mapping) if default_mapping is not None else None,
+            "metadata": _json_param(metadata) if metadata is not None else None,
+        },
+    )
+    return _schema_from_row(row) if row else None
 
 
-def delete_schema(schema_id: str, partner_id: str) -> bool:
-    record = get_schema(schema_id, partner_id)
-    if not record:
-        return False
-    _SCHEMAS.pop(schema_id, None)
-    _delete_key(_schema_key(partner_id, schema_id))
-    _delete_key(_schema_index_key(schema_id))
-    if record.api_key:
-        _delete_key(_schema_api_key_key(record.api_key))
-    return True
+def delete_schema(*, schema_id: str, partner_internal_id: int) -> bool:
+    row = _fetch_one(
+        """
+        DELETE FROM anyapi_app.mappings
+        WHERE id = %(schema_id)s AND partner_internal_id = %(partner_internal_id)s
+        RETURNING id
+        """,
+        {"schema_id": schema_id, "partner_internal_id": partner_internal_id},
+    )
+    return bool(row)
 
 
-def get_schema(schema_id: str, partner_id: str) -> Optional[SchemaRecord]:
-    record = _SCHEMAS.get(schema_id)
-    if record and record.partner_id == partner_id:
-        return record
-    payload = _get_json(_schema_key(partner_id, schema_id))
-    if not payload:
-        return None
-    record = _payload_to_schema(payload)
-    _SCHEMAS[schema_id] = record
-    return record
-
-
-def get_schema_by_id(schema_id: str) -> Optional[SchemaRecord]:
-    payload = _get_json(_schema_index_key(schema_id))
-    if not payload:
-        return None
-    partner_id = payload.get("partner_id")
-    if not isinstance(partner_id, str):
-        return None
-    return get_schema(schema_id, partner_id)
+def get_schema(*, schema_id: str, partner_internal_id: int) -> Optional[SchemaRecord]:
+    row = _fetch_one(
+        """
+        SELECT * FROM anyapi_app.mappings
+        WHERE id = %(schema_id)s AND partner_internal_id = %(partner_internal_id)s
+        """,
+        {"schema_id": schema_id, "partner_internal_id": partner_internal_id},
+    )
+    return _schema_from_row(row) if row else None
 
 
 def get_schema_by_api_key(api_key: str) -> Optional[SchemaRecord]:
-    payload = _get_json(_schema_api_key_key(api_key))
-    if not payload:
-        return None
-    schema_id = payload.get("schema_id")
-    partner_id = payload.get("partner_id")
-    if not isinstance(schema_id, str) or not isinstance(partner_id, str):
-        return None
-    return get_schema(schema_id, partner_id)
+    row = _fetch_one(
+        """
+        SELECT * FROM anyapi_app.mappings
+        WHERE api_key = %(api_key)s
+        """,
+        {"api_key": api_key},
+    )
+    return _schema_from_row(row) if row else None
 
 
-def list_schemas(partner_id: str) -> List[SchemaRecord]:
-    records: List[SchemaRecord] = []
-    if _s3_enabled():
-        keys = _list_keys(f"schemas/{partner_id}/")
-        for key in keys:
-            payload = _get_json(key)
-            if payload:
-                record = _payload_to_schema(payload)
-                _SCHEMAS[record.id] = record
-                records.append(record)
-    else:
-        records = [schema for schema in _SCHEMAS.values() if schema.partner_id == partner_id]
-    return sorted(records, key=lambda item: item.updated_at, reverse=True)
+def list_schemas(partner_internal_id: int) -> List[SchemaRecord]:
+    rows = _fetch_all(
+        """
+        SELECT * FROM anyapi_app.mappings
+        WHERE partner_internal_id = %(partner_internal_id)s
+        ORDER BY updated_at DESC
+        """,
+        {"partner_internal_id": partner_internal_id},
+    )
+    return [_schema_from_row(row) for row in rows]
+
+
+# ---------- Jobs ----------
 
 
 def create_job(
+    *,
     name: str,
+    partner_internal_id: int,
+    mapping_id: str,
     source_type: str,
-    partner_id: str,
-    data: Any,
-    mapping: Dict[str, Any],
-    target_schema: Any,
-    schema_id: Optional[str] = None,
+    status: str = "processing",
+    input_s3_key: Optional[str] = None,
+    input_checksum: Optional[str] = None,
+    result_s3_key: Optional[str] = None,
+    result_checksum: Optional[str] = None,
+    issues: Optional[List[Dict[str, Any]]] = None,
+    metrics: Optional[Dict[str, Any]] = None,
 ) -> JobRecord:
-    job_id = f"job_{uuid4().hex[:6]}"
-    record = JobRecord(
-        id=job_id,
-        name=name,
-        source_type=source_type,
-        partner_id=partner_id,
-        status="processing",
-        created_at=_utc_now(),
-        data=data,
-        mapping=mapping,
-        target_schema=target_schema,
-        schema_id=schema_id,
+    row = _fetch_one(
+        """
+        INSERT INTO anyapi_app.jobs (
+            partner_internal_id,
+            mapping_id,
+            name,
+            source_type,
+            status,
+            input_s3_key,
+            input_checksum,
+            result_s3_key,
+            result_checksum,
+            issues,
+            metrics
+        ) VALUES (
+            %(partner_internal_id)s,
+            %(mapping_id)s,
+            %(name)s,
+            %(source_type)s,
+            %(status)s,
+            %(input_s3_key)s,
+            %(input_checksum)s,
+            %(result_s3_key)s,
+            %(result_checksum)s,
+            %(issues)s,
+            %(metrics)s
+        )
+        RETURNING *
+        """,
+        {
+            "partner_internal_id": partner_internal_id,
+            "mapping_id": mapping_id,
+            "name": name,
+            "source_type": source_type,
+            "status": status,
+            "input_s3_key": input_s3_key,
+            "input_checksum": input_checksum,
+            "result_s3_key": result_s3_key,
+            "result_checksum": result_checksum,
+            "issues": _json_param(issues or []),
+            "metrics": _json_param(metrics) if metrics is not None else None,
+        },
     )
-    _JOBS[job_id] = record
-    _put_json(_job_key(partner_id, job_id), _job_to_payload(record))
-    return record
+    if not row:
+        raise RuntimeError("Failed to create job")
+    return _job_from_row(row)
 
 
-def update_job(job_id: str, partner_id: Optional[str] = None, **kwargs: Any) -> Optional[JobRecord]:
-    record = _JOBS.get(job_id)
-    if not record and partner_id:
-        record = get_job(job_id, partner_id)
-    if not record:
+def update_job(
+    *,
+    job_id: str,
+    partner_internal_id: int,
+    status: Optional[str] = None,
+    result_s3_key: Optional[str] = None,
+    result_checksum: Optional[str] = None,
+    issues: Optional[List[Dict[str, Any]]] = None,
+    metrics: Optional[Dict[str, Any]] = None,
+) -> Optional[JobRecord]:
+    row = _fetch_one(
+        """
+        UPDATE anyapi_app.jobs
+        SET
+            status = COALESCE(%(status)s, status),
+            result_s3_key = COALESCE(%(result_s3_key)s, result_s3_key),
+            result_checksum = COALESCE(%(result_checksum)s, result_checksum),
+            issues = COALESCE(%(issues)s, issues),
+            metrics = COALESCE(%(metrics)s, metrics),
+            updated_at = NOW()
+        WHERE id = %(job_id)s AND partner_internal_id = %(partner_internal_id)s
+        RETURNING *
+        """,
+        {
+            "job_id": job_id,
+            "partner_internal_id": partner_internal_id,
+            "status": status,
+            "result_s3_key": result_s3_key,
+            "result_checksum": result_checksum,
+            "issues": _json_param(issues) if issues is not None else None,
+            "metrics": _json_param(metrics) if metrics is not None else None,
+        },
+    )
+    return _job_from_row(row) if row else None
+
+
+def list_jobs(partner_internal_id: int) -> List[JobRecord]:
+    rows = _fetch_all(
+        """
+        SELECT * FROM anyapi_app.jobs
+        WHERE partner_internal_id = %(partner_internal_id)s
+        ORDER BY created_at DESC
+        """,
+        {"partner_internal_id": partner_internal_id},
+    )
+    return [_job_from_row(row) for row in rows]
+
+
+def get_job(job_id: str, partner_internal_id: int) -> Optional[JobRecord]:
+    row = _fetch_one(
+        """
+        SELECT * FROM anyapi_app.jobs
+        WHERE id = %(job_id)s AND partner_internal_id = %(partner_internal_id)s
+        """,
+        {"job_id": job_id, "partner_internal_id": partner_internal_id},
+    )
+    return _job_from_row(row) if row else None
+
+
+def get_job_result(job: JobRecord) -> Optional[Any]:
+    if not job.result_s3_key:
         return None
-    for key, value in kwargs.items():
-        setattr(record, key, value)
-    _JOBS[job_id] = record
-    _put_json(_job_key(record.partner_id, job_id), _job_to_payload(record))
-    return record
+    return _s3_get_json(job.result_s3_key)
 
 
-def list_jobs(partner_id: str) -> List[JobRecord]:
-    records: List[JobRecord] = []
-    if _s3_enabled():
-        keys = _list_keys(f"jobs/{partner_id}/")
-        for key in keys:
-            payload = _get_json(key)
-            if payload:
-                record = _payload_to_job(payload)
-                _JOBS[record.id] = record
-                records.append(record)
-    else:
-        records = [job for job in _JOBS.values() if job.partner_id == partner_id]
-    return sorted(records, key=lambda item: item.created_at, reverse=True)
+# ---------- Idempotency ----------
 
 
-def get_job(job_id: str, partner_id: str) -> Optional[JobRecord]:
-    job = _JOBS.get(job_id)
-    if job and job.partner_id == partner_id:
-        return job
-    payload = _get_json(_job_key(partner_id, job_id))
-    if not payload:
-        return None
-    job = _payload_to_job(payload)
-    _JOBS[job_id] = job
-    return job
+def get_idempotency_job_id(
+    *,
+    partner_internal_id: int,
+    mapping_id: str,
+    idempotency_key: str,
+) -> Optional[str]:
+    row = _fetch_one(
+        """
+        SELECT job_id FROM anyapi_app.idempotency_keys
+        WHERE partner_internal_id = %(partner_internal_id)s
+          AND mapping_id = %(mapping_id)s
+          AND idempotency_key = %(idempotency_key)s
+        """,
+        {
+            "partner_internal_id": partner_internal_id,
+            "mapping_id": mapping_id,
+            "idempotency_key": idempotency_key,
+        },
+    )
+    return str(row["job_id"]) if row else None
+
+
+def store_idempotency_key(
+    *,
+    partner_internal_id: int,
+    mapping_id: str,
+    idempotency_key: str,
+    job_id: str,
+) -> None:
+    _fetch_one(
+        """
+        INSERT INTO anyapi_app.idempotency_keys (
+            partner_internal_id,
+            mapping_id,
+            idempotency_key,
+            job_id
+        ) VALUES (
+            %(partner_internal_id)s,
+            %(mapping_id)s,
+            %(idempotency_key)s,
+            %(job_id)s
+        )
+        ON CONFLICT DO NOTHING
+        RETURNING id
+        """,
+        {
+            "partner_internal_id": partner_internal_id,
+            "mapping_id": mapping_id,
+            "idempotency_key": idempotency_key,
+            "job_id": job_id,
+        },
+    )
+
+
+# ---------- S3 payload helpers ----------
+
+
+def store_input_payload(partner_internal_id: int, mapping_id: str, payload: Any) -> Tuple[str, str]:
+    prefix = f"inputs/{partner_internal_id}/{mapping_id}"
+    return _s3_put_json(prefix, payload)
+
+
+def store_result_payload(partner_internal_id: int, mapping_id: str, payload: Any) -> Tuple[str, str]:
+    prefix = f"results/{partner_internal_id}/{mapping_id}"
+    return _s3_put_json(prefix, payload)
+
+
+def load_payload_from_s3(key: str) -> Any:
+    return _s3_get_json(key)
+
+
+def utc_now() -> str:
+    return datetime.utcnow().isoformat()
