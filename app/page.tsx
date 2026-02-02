@@ -7,16 +7,15 @@ export default function LandingPage() {
     <div className="min-h-screen bg-slate-950 text-white">
       <header className="border-b border-white/10">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-sm font-semibold text-slate-900">
-              AA
-            </div>
-            <div>
-              <p className="text-sm font-semibold">AnyApi</p>
-              <p className="text-xs text-white/70">
-                Agentic ingestion for any schema
-              </p>
-            </div>
+          <div className="flex items-center gap-4">
+            <img
+              src="/logo-with-txt.png"
+              alt="AnyApi"
+              className="h-8 w-auto"
+            />
+            <p className="text-xs text-white/70">
+              Agentic ingestion for any schema
+            </p>
           </div>
           <div className="flex items-center gap-3 text-sm">
             <Link

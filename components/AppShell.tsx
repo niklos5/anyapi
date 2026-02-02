@@ -17,16 +17,15 @@ export default function AppShell({ children }: AppShellProps) {
     <div className="min-h-screen">
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-900 text-sm font-semibold text-white">
-              AA
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-slate-900">AnyApi</p>
-              <p className="text-xs text-slate-500">
-                Simple mappings for any input
-              </p>
-            </div>
+          <div className="flex items-center gap-4">
+            <img
+              src="/logo-with-txt.png"
+              alt="AnyApi"
+              className="h-8 w-auto"
+            />
+            <p className="text-xs text-slate-500">
+              Simple mappings for any input
+            </p>
           </div>
           <nav className="flex items-center gap-4 text-sm font-medium text-slate-600">
             {navItems.map((item) => (

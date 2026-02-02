@@ -29,16 +29,9 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50 px-6">
       <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-900 text-sm font-semibold text-white">
-            AA
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-slate-900">AnyApi</p>
-            <p className="text-xs text-slate-500">
-              Sign in to your workspace
-            </p>
-          </div>
+        <div className="flex flex-col gap-2">
+          <img src="/logo-with-txt.png" alt="AnyApi" className="h-8 w-auto" />
+          <p className="text-xs text-slate-500">Sign in to your workspace</p>
         </div>
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
