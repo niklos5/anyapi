@@ -7,8 +7,6 @@ import AppShell from "@/components/AppShell";
 import {
   analyzeSource,
   fetchSchema,
-  fetchJob,
-  fetchJobResults,
   ingestSchema,
   listJobs,
   updateSchema,
@@ -43,20 +41,6 @@ const parseJson = (value: string) => {
   }
 };
 
-const normalizeRows = (result: unknown): Record<string, unknown>[] => {
-  if (result && typeof result === "object" && "items" in result) {
-    const items = (result as { items?: unknown }).items;
-    return Array.isArray(items) ? (items as Record<string, unknown>[]) : [];
-  }
-  if (Array.isArray(result)) {
-    return result as Record<string, unknown>[];
-  }
-  if (result && typeof result === "object") {
-    return [result as Record<string, unknown>];
-  }
-  return [];
-};
-
 export default function SchemaDetailPage() {
   const params = useParams();
   const schemaId =
@@ -85,7 +69,6 @@ export default function SchemaDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [runJobId, setRunJobId] = useState<string | null>(null);
-  const [resultRows, setResultRows] = useState<Record<string, unknown>[]>([]);
   const [jobs, setJobs] = useState<JobSummary[]>([]);
   const [jobsLoading, setJobsLoading] = useState(false);
 
@@ -281,58 +264,14 @@ export default function SchemaDetailPage() {
         mapping: parsedMapping ?? undefined,
       });
       setRunJobId(response.job.id);
-      setResultRows([]);
-      setStatusMessage("Run queued. Processing...");
+      setStatusMessage("Job created. Processing in background.");
+      loadJobs();
     } catch {
       setError("Unable to run mapping.");
     } finally {
       setRunning(false);
     }
   };
-
-  useEffect(() => {
-    if (!runJobId) {
-      return;
-    }
-    let isCancelled = false;
-    let pollId: ReturnType<typeof setInterval> | null = null;
-
-    const poll = async () => {
-      try {
-        const job = await fetchJob(runJobId);
-        if (job.status === "completed") {
-          const results = await fetchJobResults(runJobId);
-          if (isCancelled) {
-            return;
-          }
-          setResultRows(normalizeRows(results.result));
-          setStatusMessage("Run completed.");
-          loadJobs();
-          if (pollId) {
-            clearInterval(pollId);
-          }
-          return;
-        }
-        if (job.status === "failed") {
-          setStatusMessage("Run failed.");
-          if (pollId) {
-            clearInterval(pollId);
-          }
-        }
-      } catch {
-        // Results may not be ready yet; keep polling.
-      }
-    };
-
-    poll();
-    pollId = setInterval(poll, 3000);
-    return () => {
-      isCancelled = true;
-      if (pollId) {
-        clearInterval(pollId);
-      }
-    };
-  }, [runJobId]);
 
   if (loading) {
     return (
@@ -676,42 +615,14 @@ export default function SchemaDetailPage() {
           <aside className="space-y-4">
             <div>
               <h2 className="text-lg font-semibold text-slate-900">
-                Latest run
+                Jobs snapshot
               </h2>
               <p className="text-sm text-slate-500">
-                {runJobId ? `Run ID: ${runJobId}` : "Run the mapping to see output."}
+                {runJobId
+                  ? `Latest job ID: ${runJobId}`
+                  : "Create a job to see recent activity."}
                   </p>
                 </div>
-            {resultRows.length === 0 ? (
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
-                No results yet.
-              </div>
-            ) : (
-              <div className="overflow-hidden rounded-xl border border-slate-200">
-                <table className="w-full text-left text-xs text-slate-600">
-                  <thead className="bg-slate-100 text-[11px] uppercase tracking-wide text-slate-500">
-                    <tr>
-                      {Object.keys(resultRows[0] ?? {}).map((key) => (
-                        <th key={key} className="px-3 py-2">
-                          {key}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {resultRows.map((row, index) => (
-                      <tr key={`row-${index}`} className="border-t">
-                        {Object.values(row).map((value, valueIndex) => (
-                          <td key={`${index}-${valueIndex}`} className="px-3 py-2">
-                            {String(value)}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
             <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm">
               <div className="flex items-center justify-between">
                 <p className="text-sm font-semibold text-slate-900">Jobs</p>
@@ -746,6 +657,12 @@ export default function SchemaDetailPage() {
                   ))}
                 </ul>
               )}
+              <Link
+                href="/app/jobs"
+                className="mt-4 inline-flex text-xs font-semibold text-slate-600 hover:text-slate-900"
+              >
+                View all jobs →
+              </Link>
             </div>
           </aside>
         </section>
