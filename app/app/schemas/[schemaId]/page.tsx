@@ -7,8 +7,12 @@ import AppShell from "@/components/AppShell";
 import {
   analyzeSource,
   fetchSchema,
+  fetchJob,
+  fetchJobResults,
   ingestSchema,
+  listJobs,
   updateSchema,
+  JobSummary,
   SchemaSummary,
 } from "@/lib/api";
 import { parseMappingSpec } from "@/lib/mapping";
@@ -82,6 +86,8 @@ export default function SchemaDetailPage() {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [runJobId, setRunJobId] = useState<string | null>(null);
   const [resultRows, setResultRows] = useState<Record<string, unknown>[]>([]);
+  const [jobs, setJobs] = useState<JobSummary[]>([]);
+  const [jobsLoading, setJobsLoading] = useState(false);
 
   useEffect(() => {
     const loadSchema = async () => {
@@ -118,6 +124,28 @@ export default function SchemaDetailPage() {
       }
     };
     loadSchema();
+  }, [schemaId]);
+
+  const loadJobs = async () => {
+    if (!schemaId) {
+      return;
+    }
+    setJobsLoading(true);
+    try {
+      const response = await listJobs();
+      const filtered = (response.jobs ?? []).filter(
+        (job) => job.schemaId === schemaId
+      );
+      setJobs(filtered);
+    } catch {
+      setJobs([]);
+    } finally {
+      setJobsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadJobs();
   }, [schemaId]);
 
   const metrics = useMemo(() => {
@@ -253,14 +281,58 @@ export default function SchemaDetailPage() {
         mapping: parsedMapping ?? undefined,
       });
       setRunJobId(response.job.id);
-      setResultRows(normalizeRows(response.result));
-      setStatusMessage("Run completed.");
+      setResultRows([]);
+      setStatusMessage("Run queued. Processing...");
     } catch {
       setError("Unable to run mapping.");
     } finally {
       setRunning(false);
     }
   };
+
+  useEffect(() => {
+    if (!runJobId) {
+      return;
+    }
+    let isCancelled = false;
+    let pollId: ReturnType<typeof setInterval> | null = null;
+
+    const poll = async () => {
+      try {
+        const job = await fetchJob(runJobId);
+        if (job.status === "completed") {
+          const results = await fetchJobResults(runJobId);
+          if (isCancelled) {
+            return;
+          }
+          setResultRows(normalizeRows(results.result));
+          setStatusMessage("Run completed.");
+          loadJobs();
+          if (pollId) {
+            clearInterval(pollId);
+          }
+          return;
+        }
+        if (job.status === "failed") {
+          setStatusMessage("Run failed.");
+          if (pollId) {
+            clearInterval(pollId);
+          }
+        }
+      } catch {
+        // Results may not be ready yet; keep polling.
+      }
+    };
+
+    poll();
+    pollId = setInterval(poll, 3000);
+    return () => {
+      isCancelled = true;
+      if (pollId) {
+        clearInterval(pollId);
+      }
+    };
+  }, [runJobId]);
 
   if (loading) {
     return (
@@ -640,6 +712,41 @@ export default function SchemaDetailPage() {
                 </table>
               </div>
             )}
+            <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-slate-900">Jobs</p>
+                {jobsLoading && (
+                  <span className="text-xs text-slate-500">Loading...</span>
+                )}
+              </div>
+              {jobs.length === 0 ? (
+                <p className="mt-3 text-xs text-slate-500">
+                  No jobs for this mapping yet.
+                </p>
+              ) : (
+                <ul className="mt-3 space-y-2 text-xs text-slate-600">
+                  {jobs.map((job) => (
+                    <li
+                      key={job.id}
+                      className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
+                    >
+                      <div>
+                        <p className="font-semibold text-slate-900">{job.name}</p>
+                        <p className="text-[11px] text-slate-500">
+                          {job.status} • {job.createdAt}
+                        </p>
+                      </div>
+                      <Link
+                        href={`/app/jobs/${job.id}`}
+                        className="text-xs font-semibold text-slate-600 hover:text-slate-900"
+                      >
+                        View
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </aside>
         </section>
 

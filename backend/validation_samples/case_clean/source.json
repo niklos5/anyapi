@@ -1,0 +1,10 @@
+{
+  "items": [
+    {
+      "id": "sku_100",
+      "name": "Sample Widget",
+      "price": 12.5,
+      "currency": "USD"
+    }
+  ]
+}

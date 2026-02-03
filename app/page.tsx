@@ -9,9 +9,9 @@ export default function LandingPage() {
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
           <div className="flex items-center gap-4">
             <img
-              src="/logo-with-txt.png"
+              src="/logo_cut.png"
               alt="AnyApi"
-              className="h-8 w-auto"
+              className="h-16 w-auto"
             />
             <p className="text-xs text-white/70">
               Agentic ingestion for any schema

@@ -30,7 +30,7 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-slate-50 px-6">
       <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-sm">
         <div className="flex flex-col gap-2">
-          <img src="/logo-with-txt.png" alt="AnyApi" className="h-8 w-auto" />
+          <img src="/logo_cut.png" alt="AnyApi" className="h-16 w-auto" />
           <p className="text-xs text-slate-500">Sign in to your workspace</p>
         </div>
 

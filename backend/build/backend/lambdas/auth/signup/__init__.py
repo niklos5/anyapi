@@ -1,0 +1,1 @@
+"""Signup Lambda package."""

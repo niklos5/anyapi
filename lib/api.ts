@@ -1,4 +1,4 @@
-import { MappingSpec } from "@/lib/mapping";
+import { MappingAgentOptions, MappingSpec } from "@/lib/mapping";
 import { clearAccessToken, getAccessToken, refresh } from "@/lib/auth";
 import { JobStatus, TransformerMetadata } from "@/lib/types";
 
@@ -81,6 +81,7 @@ export const createJob = async (payload: {
   sourceType: string;
   data: unknown;
   mapping: MappingSpec;
+  mappingAgent?: MappingAgentOptions;
 }) =>
   doRequest<{ job: JobSummary; result?: unknown }>("/jobs", {
     method: "POST",
@@ -148,6 +149,7 @@ export const ingestSchema = async (schemaId: string, payload: {
   name?: string;
   sourceType?: string;
   mapping?: MappingSpec;
+  mappingAgent?: MappingAgentOptions;
 }) =>
   doRequest<{ job: JobSummary; result?: unknown }>(
     `/schemas/${schemaId}/ingest`,

@@ -25,6 +25,11 @@ export type MappingSpec = {
   defaults?: Record<string, unknown>;
 };
 
+export type MappingAgentOptions = {
+  enabled?: boolean;
+  maxIterations?: number;
+};
+
 export const parseMappingSpec = (value: string): MappingSpec | null => {
   try {
     const parsed = JSON.parse(value);

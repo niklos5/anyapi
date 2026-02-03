@@ -1,0 +1,10 @@
+{
+  "items": [
+    {
+      "id": 300,
+      "name": "Type Shift Item",
+      "price": "19.99",
+      "currency": "USD"
+    }
+  ]
+}
