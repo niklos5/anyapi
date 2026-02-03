@@ -15,17 +15,32 @@ export default function JobDetailPage({ params }: JobDetailPageProps) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let isCancelled = false;
+    let pollId: ReturnType<typeof setInterval> | null = null;
+
     const loadJob = async () => {
       try {
         const response = await fetchJob(params.jobId);
-        setJob(response);
-        setError(null);
+        if (!isCancelled) {
+          setJob(response);
+          setError(null);
+        }
       } catch {
-        setJob(null);
-        setError("Unable to load job details.");
+        if (!isCancelled) {
+          setJob(null);
+          setError("Unable to load job details.");
+        }
       }
     };
+
     loadJob();
+    pollId = setInterval(loadJob, 3000);
+    return () => {
+      isCancelled = true;
+      if (pollId) {
+        clearInterval(pollId);
+      }
+    };
   }, [params.jobId]);
 
   if (!job) {
@@ -121,12 +136,18 @@ export default function JobDetailPage({ params }: JobDetailPageProps) {
                 </ul>
               </div>
             )}
-            <Link
-              href={`/app/jobs/${job.id}/results`}
-              className="inline-flex items-center justify-center rounded-full bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800"
-            >
-              View results
-            </Link>
+            {job.status === "completed" ? (
+              <Link
+                href={`/app/jobs/${job.id}/results`}
+                className="inline-flex items-center justify-center rounded-full bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800"
+              >
+                View results
+              </Link>
+            ) : (
+              <span className="inline-flex items-center justify-center rounded-full bg-slate-300 px-4 py-3 text-sm font-semibold text-slate-600">
+                Results pending
+              </span>
+            )}
           </aside>
         </div>
       </div>

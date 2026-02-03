@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import AppShell from "@/components/AppShell";
-import { fetchJobResults } from "@/lib/api";
+import { fetchJob, fetchJobResults } from "@/lib/api";
 
 type JobResultsPageProps = {
   params: { jobId: string };
@@ -12,10 +12,22 @@ type JobResultsPageProps = {
 export default function JobResultsPage({ params }: JobResultsPageProps) {
   const [rows, setRows] = useState<Record<string, unknown>[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<string>("processing");
 
   useEffect(() => {
+    let isCancelled = false;
+    let pollId: ReturnType<typeof setInterval> | null = null;
+
     const loadResults = async () => {
       try {
+        const job = await fetchJob(params.jobId);
+        if (isCancelled) {
+          return;
+        }
+        setStatus(job.status);
+        if (job.status !== "completed") {
+          return;
+        }
         const response = await fetchJobResults(params.jobId);
         const result = response.result ?? {};
         if (
@@ -34,11 +46,21 @@ export default function JobResultsPage({ params }: JobResultsPageProps) {
         }
         setError(null);
       } catch {
-        setRows([]);
-        setError("Unable to load results right now.");
+        if (!isCancelled) {
+          setRows([]);
+          setError("Unable to load results right now.");
+        }
       }
     };
+
     loadResults();
+    pollId = setInterval(loadResults, 3000);
+    return () => {
+      isCancelled = true;
+      if (pollId) {
+        clearInterval(pollId);
+      }
+    };
   }, [params.jobId]);
 
   const previewRows = rows;
@@ -72,7 +94,9 @@ export default function JobResultsPage({ params }: JobResultsPageProps) {
             </h2>
             {previewRows.length === 0 ? (
               <p className="mt-4 text-sm text-slate-500">
-                No results available yet.
+                {status === "completed"
+                  ? "No results available yet."
+                  : "Processing... Results will appear shortly."}
               </p>
             ) : (
               <div className="mt-4 overflow-hidden rounded-xl border border-slate-200">

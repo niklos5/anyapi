@@ -4,6 +4,7 @@ import AuthStatus from "@/components/AuthStatus";
 
 const navItems = [
   { label: "Mappings", href: "/app" },
+  { label: "Jobs", href: "/app/jobs" },
   { label: "Create mapping", href: "/app/schemas/new" },
   { label: "Billing", href: "/app/billing" },
 ];
